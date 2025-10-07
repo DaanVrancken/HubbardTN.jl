@@ -21,17 +21,17 @@ function Hopping(P,Q,spin)
         Vup = Vect[I]((1, 1, Q) => 1)
         Vdown = Vect[I]((1, -1, Q) => 1)
     
-        c⁺u = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vup)
+        c⁺u = zeros(ComplexF64, Ps ← Ps ⊗ Vup)
         blocks(c⁺u)[I((1, 1, Q-P))] .= 1
         blocks(c⁺u)[I((0, 0, 2*Q-P))] .= -1
-        cu = TensorMap(zeros, ComplexF64, Vup ⊗ Ps ← Ps)
+        cu = zeros(ComplexF64, Vup ⊗ Ps ← Ps)
         blocks(cu)[I((1, 1, Q-P))] .= 1
         blocks(cu)[I((0, 0, 2*Q-P))] .= 1
         
-        c⁺d = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vdown)
+        c⁺d = zeros(ComplexF64, Ps ← Ps ⊗ Vdown)
         blocks(c⁺d)[I((1, -1, Q-P))] .= 1
         blocks(c⁺d)[I((0, 0, 2*Q-P))] .= 1
-        cd = TensorMap(zeros, ComplexF64, Vdown ⊗ Ps ← Ps)
+        cd = zeros(ComplexF64, Vdown ⊗ Ps ← Ps)
         blocks(cd)[I((1, -1, Q-P))] .= 1
         blocks(cd)[I((0, 0, 2*Q-P))] .= -1
     
@@ -41,11 +41,11 @@ function Hopping(P,Q,spin)
     else
         Vs = Vect[I]((1, 1 / 2, Q) => 1)
 
-        c⁺ = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vs)
+        c⁺ = zeros(ComplexF64, Ps ← Ps ⊗ Vs)
         blocks(c⁺)[I((1, 1 // 2, Q-P))] .= 1
         blocks(c⁺)[I((0, 0, 2*Q-P))] .= sqrt(2)
 
-        c = TensorMap(zeros, ComplexF64, Vs ⊗ Ps ← Ps)
+        c = zeros(ComplexF64, Vs ⊗ Ps ← Ps)
         blocks(c)[I((1, 1 / 2, Q-P))] .= 1
         blocks(c)[I((0, 0, 2*Q-P))] .= sqrt(2)
 
@@ -59,10 +59,10 @@ function OSInteraction(P,Q,spin)
     I, Ps = SymSpace(P,Q,spin)
 
     if spin
-        onesite = TensorMap(zeros, ComplexF64, Ps ← Ps)
+        onesite = zeros(ComplexF64, Ps ← Ps)
         blocks(onesite)[I((0, 0, 2*Q-P))] .= 1
     else
-        onesite = TensorMap(zeros, ComplexF64, Ps ← Ps)
+        onesite = zeros(ComplexF64, Ps ← Ps)
         blocks(onesite)[I((0, 0, 2*Q-P))] .= 1
     end
 
@@ -73,12 +73,12 @@ function Number(P,Q,spin)
     I, Ps = SymSpace(P,Q,spin)
 
     if spin
-        n = TensorMap(zeros, ComplexF64, Ps ← Ps)
+        n = zeros(ComplexF64, Ps ← Ps)
         blocks(n)[I((0, 0, 2*Q-P))] .= 2
         blocks(n)[I((1, 1, Q-P))] .= 1
         blocks(n)[I((1, -1, Q-P))] .= 1
     else
-        n = TensorMap(zeros, ComplexF64, Ps ← Ps)
+        n = zeros(ComplexF64, Ps ← Ps)
         blocks(n)[I((0, 0, 2*Q-P))] .= 2
         blocks(n)[I((1, 1 // 2, Q-P))] .= 1
     end
@@ -89,7 +89,7 @@ end
 function Sz(P, Q)
     I, Ps = SymSpace(P, Q, true)
  
-    sz = TensorMap(zeros, ComplexF64, Ps ← Ps)
+    sz = zeros(ComplexF64, Ps ← Ps)
  
     blocks(sz)[I((0, 0, 2*Q-P))] .= 0.0
     blocks(sz)[I((1, 1, Q-P))] .= 0.5
@@ -109,11 +109,11 @@ function Hopping()
     I, Ps = SymSpace()
     Vs = Vect[I]((1, 1 / 2) => 1)
 
-    c⁺ = TensorMap(zeros, ComplexF64, Ps ← Ps ⊗ Vs)
+    c⁺ = zeros(ComplexF64, Ps ← Ps ⊗ Vs)
     blocks(c⁺)[I((1, 1 // 2))][1] = 1.0+0.0im
     blocks(c⁺)[I((0, 0))][2] = sqrt(2)+0.0im
 
-    c = TensorMap(zeros, ComplexF64, Vs ⊗ Ps ← Ps)
+    c = zeros(ComplexF64, Vs ⊗ Ps ← Ps)
     blocks(c)[I((1, 1 // 2))][1] = 1.0+0.0im
     blocks(c)[I((0, 0))][2] = sqrt(2)+0.0im
 
@@ -125,7 +125,7 @@ end
 function OSInteraction()
     I, Ps = SymSpace()
 
-    onesite = TensorMap(zeros, ComplexF64, Ps ← Ps)
+    onesite = zeros(ComplexF64, Ps ← Ps)
     blocks(onesite)[I((0, 0))][2,2] = 1.0
 
     return onesite
@@ -134,7 +134,7 @@ end
 function Number()
     I, Ps = SymSpace()
 
-    n = TensorMap(zeros, ComplexF64, Ps ← Ps)
+    n = zeros(ComplexF64, Ps ← Ps)
     blocks(n)[I((0, 0))][2,2] = 2.0 
     blocks(n)[I((1, 1 // 2))] .= 1.0
 

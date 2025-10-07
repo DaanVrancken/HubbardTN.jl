@@ -17,7 +17,7 @@ function Base.string(s::TensorKit.ProductSector{Tuple{FermionParity,SU2Irrep}})
 end
 
 """
-    OB_Sim(t::Vector{Float64}, u::Vector{Float64}, μ=0.0, J::Vector{Float64}, P=1, Q=1, svalue=2.0, bond_dim=50, period=0; kwargs...)
+    OB_Sim(t::Vector{Float64}, u::Vector{Float64}, μ=0.0, J::Vector{Float64}=[0.0], P=1, Q=1, svalue=2.0, bond_dim=50, period=0; kwargs...)
 
 Construct a parameter set for a 1D one-band Hubbard model with a fixed number of particles.
 
@@ -44,9 +44,6 @@ struct OB_Sim <: Simulation
     bond_dim::Int64
     period::Int64
     kwargs
-    function OB_Sim(t::Vector{Float64}, u::Vector{Float64}, μ::Float64=0.0, P::Int64=1, Q::Int64=1, svalue=2.0, bond_dim = 50, period = 0; kwargs...)
-        return new(t, u, μ, [0.0], P, Q, svalue, bond_dim, period, kwargs)
-    end
     function OB_Sim(t::Vector{Float64}, u::Vector{Float64}, μ::Float64=0.0, J::Vector{Float64}=[0.0], P::Int64=1, Q::Int64=1, svalue=2.0, bond_dim = 50, period = 0; kwargs...)
         return new(t, u, μ, J, P, Q, svalue, bond_dim, period, kwargs)
     end

@@ -1,4 +1,4 @@
-module HubbardFunctions
+module HubbardTN
 
 # if occursin("amd",lowercase(Sys.cpu_info()[1].model))
 #     using BLISBLAS
@@ -19,7 +19,6 @@ using LinearAlgebra
 using MPSKit, MPSKitModels
 using TensorKit
 using KrylovKit
-# using DataFrames
 using Plots
 using Plots.PlotMeasures
 using TensorOperations

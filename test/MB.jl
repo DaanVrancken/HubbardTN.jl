@@ -8,7 +8,7 @@ println("
 # INITIALISATION #
 ##################
 
-Force = true
+Force = false
 tol = 1e-1
 
 # Extract name of the current file. Will be used as code name for the simulation.
@@ -36,7 +36,7 @@ P = 1;
 Q = 1;
 bond_dim = 20;
 
-model = hf.MB_Sim(t, u, J, P, Q, 2.0, bond_dim; code = name);
+model = MB_Sim(t, u, J, P, Q, 2.0, bond_dim; code = name);
 
 # Model for testing nontrivial interactions
 t_OS2 = [0.5 0.1; 0.1 0.5];
@@ -48,15 +48,15 @@ u2 = cat(U2,V2,dims=2)
 J2 = [0.0 0.5; 0.5 0.0]
 U13 = zeros(2,2) #[0.0 0.5; 0.5 0.0]
 
-model2 = hf.MB_Sim(t2, u2, J2, U13, P, Q, 2.0, bond_dim; code = name*"2");
+model2 = MB_Sim(t2, u2, J2, U13, P, Q, 2.0, bond_dim; code = name*"2");
 
 
 ###############
 # GROUNDSTATE #
 ###############
 
-dictionary = hf.produce_groundstate(model; force=Force, path=path);
-dictionary2 = hf.produce_groundstate(model2; force=Force, path=path);
+dictionary = produce_groundstate(model; force=Force, path=path);
+dictionary2 = produce_groundstate(model2; force=Force, path=path);
 
 @testset "Groundstate" begin
     E_norm = -0.630375296
@@ -84,7 +84,7 @@ end
     momenta = range(0, π, resolution);
     nums = 1;
 
-    exc = hf.produce_excitations(model, momenta, nums; force=Force, charges=[1,0.5,1], path=path);
+    exc = produce_excitations(model, momenta, nums; force=Force, charges=[1,0.5,1], path=path);
     Es = exc["Es"];
     @test imag(Es)≈zeros(size(Es)) atol=1e-8
 end
@@ -96,15 +96,15 @@ end
 
 @testset "Tools" begin
     trunc_dim = 5
-    dict_trunc = hf.produce_TruncState(model, trunc_dim; trunc_scheme=1, force=Force, path=path);
+    dict_trunc = produce_TruncState(model, trunc_dim; trunc_scheme=1, force=Force, path=path);
 
-    D = hf.dim_state(dictionary["groundstate"])
+    D = dim_state(dictionary["groundstate"])
     @test typeof(D) == Vector{Int64}
     @test D > zeros(size(D))
 
-    D_trunc = hf.dim_state(dict_trunc["ψ_trunc"])
+    D_trunc = dim_state(dict_trunc["ψ_trunc"])
     @test sum(D_trunc)/4 <= trunc_dim
 
-    electron_number = hf.density_state(model)
+    electron_number = density_state(model; path=path)
     @test sum(electron_number)/4 ≈ P/Q atol=1e-8
 end

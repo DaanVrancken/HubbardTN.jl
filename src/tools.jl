@@ -90,10 +90,10 @@ function density_spin(ψ₀::InfiniteMPS, P::Int64, Q::Int64)
     end
     Bands = Int(length(ψ₀)/T)
 
-    nup = TensorMap(zeros, ComplexF64, Ps ← Ps)
+    nup = zeros(ComplexF64, Ps ← Ps)
     blocks(nup)[I((0, 0, 2*Q-P))] .= 1
     blocks(nup)[I((1, 1, Q-P))] .= 1
-    ndown = TensorMap(zeros, ComplexF64, Ps ← Ps)
+    ndown = zeros(ComplexF64, Ps ← Ps)
     blocks(ndown)[I((0, 0, 2*Q-P))] .= 1
     blocks(ndown)[I((1, -1, Q-P))] .= 1
 

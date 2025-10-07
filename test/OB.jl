@@ -25,8 +25,8 @@ Q = 1;
 E_norm = [-1.2696767, -1.037173, -0.84163698]
 
 @testset "Dependence on parameters" for u in u_range
-    model = hf.OB_Sim([1.0], [Float64(u)], 0.0, P, Q, 2.0);
-    dictionary = hf.produce_groundstate(model; force=Force, path=path);
+    model = OB_Sim([1.0], [Float64(u)], 0.0, [0.0], P, Q, 2.0);
+    dictionary = produce_groundstate(model; force=Force, path=path);
     ψ₀ = dictionary["groundstate"];
     H = dictionary["ham"];
     E0 = expectation_value(ψ₀, H);
@@ -48,8 +48,8 @@ E = zeros(length(P),1);
 E_norm = [-0.73920032, -0.48460447, 1.76073968]
 
 @testset "Dependence on filling" for i in eachindex(P)
-    model = hf.OB_Sim(t, u, 0.0, P[i], Q[i], 2.0);
-    dictionary = hf.produce_groundstate(model; force=Force, path=path);
+    model = OB_Sim(t, u, 0.0, [0.0], P[i], Q[i], 2.0);
+    dictionary = produce_groundstate(model; force=Force, path=path);
     ψ₀ = dictionary["groundstate"];
     H = dictionary["ham"];
     E0 = expectation_value(ψ₀, H);
@@ -67,9 +67,9 @@ Q=1;
 u=[5.0];
 t=[1.0];
 
-model = hf.OB_Sim(t, u, 0.0, P, Q, 2.0);
+model = OB_Sim(t, u, 0.0, [0.0], P, Q, 2.0);
 
-dictionary = hf.produce_groundstate(model; force=Force, path=path);
+dictionary = produce_groundstate(model; force=Force, path=path);
 
 @testset "Excitations" begin 
     ψ₀ = dictionary["groundstate"];
@@ -83,7 +83,7 @@ dictionary = hf.produce_groundstate(model; force=Force, path=path);
     resolution = 5;
     momenta = range(0, π, resolution);
 
-    exc = hf.produce_excitations(model, momenta, nums; force=Force, charges=[1,0.5,-1], path=path);
+    exc = produce_excitations(model, momenta, nums; force=Force, charges=[1,0.5,-1], path=path);
     Es = exc["Es"];
     @test real(Es)≈Es_norm atol=tol
     @test imag(Es)≈zeros(size(Es)) atol=1e-8
@@ -95,10 +95,10 @@ end
 #########
 
 @testset "Tools" begin
-    D = hf.dim_state(dictionary["groundstate"])
+    D = dim_state(dictionary["groundstate"])
     @test typeof(D) == Vector{Int64}
     @test D > zeros(size(D))
 
-    electron_number = sum(hf.density_state(model))/2
+    electron_number = sum(density_state(model; path=path))/2
     @test sum(electron_number)≈P/Q atol=1e-8
 end

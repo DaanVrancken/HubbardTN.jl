@@ -8,7 +8,7 @@ println("
 # INITIALISATION #
 ##################
 
-Force = true
+Force = false
 tol = 1e-1
 
 # Extract name of the current file. Will be used as code name for the simulation.
@@ -35,14 +35,14 @@ J = [0.0 0.0; 0.0 0.0]
 
 bond_dim = 20;
 
-model = hf.MBC_Sim(t, u, J, 2.0, bond_dim; code=name);
+model = MBC_Sim(t, u, J, 2.0, bond_dim; code=name);
 
 
 ###############
 # GROUNDSTATE #
 ###############
 
-dictionary = hf.produce_groundstate(model; force=Force, path=path);
+dictionary = produce_groundstate(model; force=Force, path=path);
 
 @testset "Groundstate" begin
     ψ₀ = dictionary["groundstate"];
@@ -56,7 +56,7 @@ dictionary = hf.produce_groundstate(model; force=Force, path=path);
         μ[i] = t[i,i]
     end
 
-    Ne = real(hf.density_state(ψ₀));
+    Ne = real(density_state(ψ₀));
     E0 = expectation_value(ψ₀, H) + sum(μ.*Ne);
     E = real(E0)/length(H)
     @test E≈E_norm atol=tol
@@ -72,7 +72,7 @@ end
     momenta = range(0, π, resolution);
     nums = 1;
 
-    exc = hf.produce_excitations(model, momenta, nums; force=Force, charges=[1,0.5,1], path=path);
+    exc = produce_excitations(model, momenta, nums; force=Force, charges=[1,0.5,1], path=path);
     Es = exc["Es"];
     @test imag(Es)≈zeros(size(Es)) atol=1e-8
 end
@@ -83,7 +83,7 @@ end
 #########
 
 @testset "Tools" begin
-    D = hf.dim_state(dictionary["groundstate"])
+    D = dim_state(dictionary["groundstate"])
     @test typeof(D) == Vector{Int64}
     @test D > zeros(size(D))
 end
