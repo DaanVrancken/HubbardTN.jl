@@ -20,7 +20,7 @@ makedocs(
 )
 
 deploydocs(
-    repo = "github.com/dvrancke/HubbardTN.jl.git",
+    repo = "github.com/DaanVrancken/HubbardTN.jl.git",
     push_preview = true,
     devbranch = "master",
 )
