@@ -1,21 +1,25 @@
 name: Documentation
 
+permissions:
+  contents: write
+  pages: write
+
 on:
   push:
     branches:
       - main
       - master
+    tags: '*'
   pull_request:
 
 jobs:
   build:
-    name: Build and Deploy Docs
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/setup-julia@latest
         with:
           version: '1' # gebruik Julia 1.x, of zet '1.10' voor specifieke versie
 
