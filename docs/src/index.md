@@ -1,25 +1,18 @@
 # HubbardTN
 
-Welcome to the documentation for HubbardTN, a tool for implementing and solving general 1D multi-band Hubbard models using tensor networks.
+Welcome to the documentation for HubbardTN, a tool for implementing and solving general 1D multi-band Hubbard models using tensor networks. The framework is built upon the packages [MPSKit.jl](https://github.com/QuantumKitHub/MPSKit.jl) and [TensorKit.jl](https://github.com/jutho/TensorKit.jl). [DrWatson.jl](https://juliadynamics.github.io/DrWatson.jl/stable/) is used to automatically store your results in the desired location.
 
 ## Installation
 
-To reproduce this project, do the following:
-
-1. Download this code base.
-   ```
-   git clone https://github.com/DaanVrancken/HubbardTN
-   ```
-2. Open a Julia console and do:
-   ```
-   julia> using Pkg
-   julia> Pkg.add("DrWatson") # install globally, for using `quickactivate`
-   julia> Pkg.activate("path/to/this/project")
-   julia> Pkg.instantiate()
-   ```
-
-This will install all necessary packages for you to be able to run the scripts and
-everything should work out of the box, including correctly finding local paths.
+To add this package to your Julia environment, do
+```
+julia> using Pkg
+julia> Pkg.add("https://github.com/DaanVrancken/HubbardTN.jl")
+```
+after which it can be used by loading
+```
+julia> using HubbardTN
+```
 
 ## Usage
 

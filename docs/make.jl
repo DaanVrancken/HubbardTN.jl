@@ -1,5 +1,4 @@
 using Documenter
-using FilePathsBase
 using HubbardTN
 
 # For local usage: dirty workaround for limited acces rights of Julia.
