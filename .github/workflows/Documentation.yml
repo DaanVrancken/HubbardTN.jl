@@ -1,0 +1,34 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  build:
+    name: Build and Deploy Docs
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1' # gebruik Julia 1.x, of zet '1.10' voor specifieke versie
+
+      - name: Install dependencies
+        run: |
+          julia --project=docs -e '
+            using Pkg;
+            Pkg.develop(PackageSpec(path="."));
+            Pkg.instantiate();
+          '
+
+      - name: Build and deploy documentation
+        run: |
+          julia --project=docs docs/make.jl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
