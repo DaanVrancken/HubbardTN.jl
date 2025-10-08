@@ -7,7 +7,7 @@ using MPSKit
 using KrylovKit
 
 # store calculations at
-path = "sims"
+path = joinpath("data", "one_band")
 
 
 #################

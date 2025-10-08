@@ -82,7 +82,7 @@ end
 
     @test sum(N1)/2 ≈ sum(Nup1 + Ndown1)/length(dictionary1["ham"])
 
-    N2 = density_state(model2)
+    N2 = density_state(model2; path=path)
     Nup2, Ndown2 = density_spin(model2; path=path)
 
     @test sum(N2)/2 ≈ sum(Nup2 + Ndown2)/length(dictionary1["ham"])
