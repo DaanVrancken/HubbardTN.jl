@@ -11,7 +11,6 @@ using HubbardTN
 
 makedocs(
     sitename = "HubbardTN.jl",
-    modules = [HubbardTN],
     pages = [
         "Home" => "index.md",
         "Library" => "Functions.md",
