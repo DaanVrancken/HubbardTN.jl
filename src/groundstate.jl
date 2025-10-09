@@ -227,7 +227,7 @@ function produce_groundstate(simul::Union{MB_Sim, MBC_Sim}; force::Bool=false, p
         S = "spin_"
     end
 
-    data, _ = produce_or_load(compute_groundstate, simul, path; prefix="groundstate_"*S*code, force=force, init_state=init_state)
+    data, _ = produce_or_load(compute_groundstate, simul, path; prefix="groundstate_"*S*code, force=force)
     return data
 end
 
@@ -250,6 +250,6 @@ function produce_groundstate(simul::Union{OB_Sim, OBC_Sim}; force::Bool=false, p
     Ms = JMs[2]
     S = "groundstate_"*S_spin*"t$(t)_u$(u)_J$(J)_U13$(U13)_JMs$(J_inter)_$(Ms)"
     S = replace(S, ", " => "_")
-    data, _ = produce_or_load(compute_groundstate, simul, path; prefix=S, force=force, init_state=init_state)
+    data, _ = produce_or_load(compute_groundstate, simul, path; prefix=S, force=force)
     return data
 end
