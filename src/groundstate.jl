@@ -78,9 +78,10 @@ function initialize_mps(operator, max_dimension::Int64)
     return InfiniteMPS(Ps, V_trunc)
 end
 
-function compute_groundstate(simul::Union{OB_Sim, MB_Sim, OBC_Sim2, MBC_Sim}; tol::Float64=1e-6, verbosity::Int64=0, maxiter::Int64=1000, init_state=nothing)
+function compute_groundstate(simul::Union{OB_Sim, MB_Sim, OBC_Sim2, MBC_Sim}; tol::Float64=1e-6, verbosity::Int64=0, maxiter::Int64=1000)
     H = hamiltonian(simul)
     spin::Bool = get(simul.kwargs, :spin, false)
+    init_state = get(simul.kwargs, :init_state, nothing)
 
     if isnothing(init_state)
         if hasproperty(simul, :P)
@@ -214,9 +215,9 @@ function compute_groundstate(simul::OBC_Sim; tol::Float64=1e-6, verbosity::Int64
 end
 
 """
-    produce_groundstate(model::Simulation; force::Bool=false, path="")
+    produce_groundstate(model::Simulation; force::Bool=false, path::String="")
 
-Compute or load groundstate of the `model`. If `force=true`, overwrite existing calculation.
+Compute or load groundstate of the `model`. It can be stored at or loaded from `path`. If `force=true`, overwrite existing calculation.
 """
 function produce_groundstate(simul::Union{MB_Sim, MBC_Sim}; force::Bool=false, path::String="")
     code = get(simul.kwargs, :code, "")
@@ -226,7 +227,7 @@ function produce_groundstate(simul::Union{MB_Sim, MBC_Sim}; force::Bool=false, p
         S = "spin_"
     end
 
-    data, _ = produce_or_load(compute_groundstate, simul, path; prefix="groundstate_"*S*code, force=force)
+    data, _ = produce_or_load(compute_groundstate, simul, path; prefix="groundstate_"*S*code, force=force, init_state=init_state)
     return data
 end
 
@@ -249,6 +250,6 @@ function produce_groundstate(simul::Union{OB_Sim, OBC_Sim}; force::Bool=false, p
     Ms = JMs[2]
     S = "groundstate_"*S_spin*"t$(t)_u$(u)_J$(J)_U13$(U13)_JMs$(J_inter)_$(Ms)"
     S = replace(S, ", " => "_")
-    data, _ = produce_or_load(compute_groundstate, simul, path; prefix=S, force=force)
+    data, _ = produce_or_load(compute_groundstate, simul, path; prefix=S, force=force, init_state=init_state)
     return data
 end

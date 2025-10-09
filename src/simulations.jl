@@ -31,6 +31,8 @@ Construct a parameter set for a 1D one-band Hubbard model with a fixed number of
 - `bond_dim`: The maximal bond dimension used to initialize the state.
 - `Period`: Perform simulations on a helix with circumference `Period`. Value 0 corresponds to an infinite chain.
 
+The optional argument `init_state` can be used to provide an initial guess for the groundstate search.
+    
 Put the optional argument `spin=true` to perform spin-dependent calculations.
 """
 struct OB_Sim <: Simulation
@@ -67,6 +69,8 @@ Construct a parameter set for a 1D B-band Hubbard model with a fixed number of p
 Put the optional argument 'spin=true' to perform spin-dependent calculations. 
 
 U13 inter-site, Uijkk, and Uijkl can be inserted using kwargs.
+
+The optional argument `init_state` can be used to provide an initial guess for the groundstate search.
 
 Use the optional argument `name` to assign a name to the model. 
 This is used to destinguish between different parameter sets: Wrong results could be loaded or overwritten if not used consistently!!!
@@ -164,6 +168,8 @@ Construct a parameter set for a 1D ``B``-band Hubbard model with the number of p
 Spin-dependent calculations are not yet implemented.
 
 U13 inter-site, Uijkk, and Uijkl can be inserted using kwargs.
+
+The optional argument `init_state` can be used to provide an initial guess for the groundstate search.
 
 Use the optional argument `name` to assign a name to the model. 
 This is used to destinguish between different parameter sets: Wrong results could be loaded or overwritten if not used consistently!!!
