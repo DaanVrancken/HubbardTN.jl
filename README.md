@@ -5,7 +5,7 @@ Contains code for constructing and solving general one-dimensional Hubbard model
 To add this package to your Julia environment, do
 ```
 julia> using Pkg
-julia> Pkg.add("https://github.com/DaanVrancken/HubbardTN.jl")
+julia> Pkg.add(url="https://github.com/DaanVrancken/HubbardTN.jl")
 ```
 after which it can be used by loading
 ```
