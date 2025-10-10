@@ -16,6 +16,9 @@ TensorKit = "07d1fe3e-3e46-537d-9eac-e9e13d0d4cec"
 TensorOperations = "6aa20fa7-93e2-5fca-9bc0-fbd0db3c71a2"
 ThreadPinning = "811555cd-349b-4f26-b7bc-1f208b848042"
 
+[compat]
+DrWatson = "2"
+
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 ThreadPinning = "811555cd-349b-4f26-b7bc-1f208b848042"
