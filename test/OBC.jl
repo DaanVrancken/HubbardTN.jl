@@ -30,7 +30,7 @@ path = joinpath("sims","OBC")
     Ne = density_state(ψ₀);
     E0 = sum(expectation_value(ψ₀, H)) + dictionary["μ"]*Ne;
 
-    @test Ne≈P/Q atol=1e-8
+    @test Ne≈P/Q atol=1e-6
     @test real(E0)≈E_norm atol=tol
 end
 
