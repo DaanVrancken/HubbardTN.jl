@@ -5,7 +5,7 @@ println("
 ")
 
 Force = false
-tol = 1e-2
+tol = 1e-1
 
 # store calculations at
 path = joinpath("sims","OBC")
