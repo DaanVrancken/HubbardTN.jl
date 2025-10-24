@@ -1,65 +1,29 @@
-##################
-# INITIALISATION #
-##################
-
 using HubbardTN
-using MPSKit
-using KrylovKit
+using TensorKit
 
-# store calculations at
-path = joinpath("data", "one_band")
+# Step 1: Define the symmetries
+particle_symmetry = U1Irrep
+spin_symmetry = U1Irrep
+cell_width = 2
+filling = (1, 1)
 
+symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width, filling)
 
-#################
-# DEFINE SYSTEM #
-#################
+# Step 2: Set up model parameters
+t = [0.0, 1.0]   # [chemical_potential, nn_hopping, nnn_hopping, ...]
+U = [4.0]        # [on-site interaction, nn_interaction, ...]
 
-s = 2.5             # Schmidt cut value, determines bond dimension.
-P = 1;              # Filling of P/Q. P/Q = 1 is half-filling.
-Q = 1;
-bond_dim = 20;      # Initial bond dimension of the state. Impact on result is small as DMRG modifies it.
+model = ModelParams(t, U)
+calc = CalcConfig(symm, model)
 
-# Define hopping, direct interaction, and chemical potential.
-t=[1.0, 0.1];
-u=[8.0];
-J=[0.0];
-μ=0.0;
+# Step 3: Compute the ground state
+gs = compute_groundstate(calc)
+ψ = gs["groundstate"]
+H = gs["ham"]
 
-# Spin=false will use SU(2) spin symmetry, the exact spin configuration cannot be deduced.
-Spin = false
+println("Ground-state energy density: ", expectation_value(ψ, H) / length(H))
 
-model = OB_Sim(t, u, μ, J, P, Q, s, bond_dim; spin=Spin);
-
-
-########################
-# COMPUTE GROUNDSTATES #
-########################
-
-dictionary = produce_groundstate(model; force=false, path=path);
-ψ₀ = dictionary["groundstate"];
-H = dictionary["ham"];
-E0 = expectation_value(ψ₀, H);
-E = sum(real(E0))/length(H);
-
-println("Groundstate energy: $E")
-println("Bond dimension: $(dim_state(ψ₀))")
-
-
-########################
-# COMPUTE EXCITATIONS #
-########################
-
-resolution = 5;
-momenta = range(0, π, resolution);
-nums = 1;
-
-exc = produce_excitations(model, momenta, nums; charges=[0,0.0,0], path=path);
-Es = exc["Es"];
-println("Excitation energies: ")
-println(Es)
-
-println("Exciton energy for s=$s: $(real(Es[1,1]))")
-
-gap, k = produce_bandgap(model: path=path)
-
-println("Band Gap for s=$s: $gap eV at momentum $k")
+# Step 4: Compute first excitation in fZ2(0) × U1Irrep(0) × U1Irrep(0) sector
+momenta = collect(range(0, 2π, length = 10))
+charges = [0.0, 0.0, 0.0]
+ex = compute_excitations(gs, momenta, charges)

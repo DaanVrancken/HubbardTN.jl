@@ -1,125 +1,118 @@
 # Examples
-Several examples can be found in the "examples" folder of the repository. In this tutorial, we elaborate on some of the details.
 
-## Initialization
-To make use of the functionalities, we first need to import the package
-```
-julia> using HubbardTN
-```
-We also define a directory where we want to store our output data
-```
-julia> path = "output"
-```
-This will allow us to load previously calculated states at a later time or compute excited states without having to recompute the ground state, for example.
+This page demonstrates how to use **HubbardTN** to build and solve different 1D Hubbard models using tensor networks.
 
-## One-band
-Each Hubbard model is linked to a structure, storing all its major properties. The first question we ask ourselves is whether we want to conserve the number of electrons by imposing a $U(1)$ symmetry, or if we want to add a chemical potential to deal with this. The first we achieve by using the ```OB_Sim()``` structure, the latter with ```OBC_Sim()```.
+Two examples are provided:
+1. A **minimal single-band Hubbard model**
+2. A **general multi-band Hubbard model**
 
-The most important properties of ```OB_Sim()``` are the hoppig ```t```, the Hubbard ```u```, the chemical potential ```µ```, and the filling defined by the ratio ```P```/```Q```.
-```
-s = 2.5             # Schmidt cut value, determines bond dimension.
-P = 1;              # Filling of P/Q. P/Q = 1 is half-filling.
-Q = 1;
-bond_dim = 20;      # Initial bond dimension of the state. Impact on result is small as DMRG modifies it.
+---
 
-# Define hopping, direct interaction, and chemical potential.
-t=[1.0, 0.1];
-u=[8.0];
-μ=0.0;
+## 🧩 Minimal Example
 
-# Spin=false will use SU(2) spin symmetry, the exact spin configuration cannot be deduced.
-Spin = false
+```julia
+using HubbardTN
+using TensorKit
 
-model = OB_Sim(t, u, μ, P, Q, s, bond_dim; spin=Spin);
-```
-```t``` is a vector where the first element is the nearest neighbour hopping, the second the next-nearest neighbour hopping, and so on. Similarly, the first element of ```u``` is the on-site Coulomb repulsion and the second element the interaction between two neighbouring sites. 
+# Step 1: Define the symmetries
+particle_symmetry = U1Irrep
+spin_symmetry = U1Irrep
+cell_width = 2
+filling = (1, 1)
 
-The Schmidt cut ```s``` determines to which value the bond dimension is grown by the iDMRG2 algorithm, while ```bond_dim``` is the maximal value used for the initialization of the MPS.
+symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width, filling)
 
-> **NOTE:**
-> In order to preserve injectivity, a unit cell of size ```Q``` is used if ```P```is even and of size ```2*Q``` if ```P``` is odd. Therefore, filling ratios that deviate from half filling ```P=Q=1``` tend to be more computationally intensive.
+# Step 2: Set up model parameters
+t = [0.0, 1.0]   # [chemical_potential, nn_hopping, nnn_hopping, ...]
+U = [4.0]        # [on-site interaction, nn_interaction, ...]
 
-Finally, the tag ```spin``` determines if spin up and down have to be treated independently. If ```spin=false```, an additional $SU(2)$ symmetry is imposed, reducing the local Hilbert space dimension to 3 and leading to a substantial speed up. However, no information about the spin of a state can be retrieved.
+model = ModelParams(t, U)
+calc = CalcConfig(symm, model)
 
-```OBC_Sim()``` works similarly. Now, we either provide a chemical potential or a filling.
-```
-model_OBC_1 = OBC_Sim(t, u, P/Q, s, bond_dim; mu=false)
-model_OBC_2 = OBC_Sim(t, u, μ, s, bond_dim; mu=true)
-```
-If a filling is defined, the corresponding chemical potential is sought iteratively. Calculations without spin symmetry are not yet implemented.
+# Step 3: Compute the ground state
+gs = compute_groundstate(calc)
+ψ = gs["groundstate"]
+H = gs["ham"]
 
-## Multi-band
-In analogy with the one-band model, multi-band models can be constructed using ```MB_Sim()``` or ```MBC_Sim()```. For the one-band model, DrWatson.jl is able to find a unique name for the model based on its parameters. This name is later used to retrieve earlier computed results. For multi-band models, the number of parameters is simply too large and we have to provide a unique name ourselves, like the name of the script for instance.
-```
-name_jl = last(splitpath(Base.source_path()))
-name = first(split(name_jl,"."))
-```
-Then, we insert the parameters in the form of $B\times B$ matrices, where $B$ is the number of bands. For a 2-band model this looks as follows
-```
-s = 2.5             # Schmidt cut value, determines bond dimension.
-P = 1;              # Filling of P/Q. P/Q = 1 is half-filling.
-Q = 1;
-bond_dim = 20;      # Initial bond dimension of the state. Impact on result is small as DMRG modifies it.
+println("Ground-state energy density: ", expectation_value(ψ, H) / length(H))
 
-# Define hopping, direct and exchange interaction matrices.
-t_onsite = [0.000 3.803; 3.803 0.000];
-t_intersite = [-0.548 0.000;2.977 -0.501];
-t = cat(t_onsite,t_intersite, dims=2);
-U = [10.317 6.264 0.000 0.000; 6.264 10.317 6.162 0.000];
-J = [0.000 0.123 0.000 0.000; 0.123 0.000 0.113 0.000];
-U13 = zeros(2,2)
+# Step 4: Compute first excitation in fZ2(0) × U1Irrep(0) × U1Irrep(0) sector
+momenta = collect(range(0, 2π, length = 10))
+charges = [0.0, 0.0, 0.0]
+ex = compute_excitations(gs, momenta, charges)
+```
 
-model = MB_Sim(t, U, J, U13, P, Q, s, bond_dim; code = name);
-```
-Where the one-band model used vectors for ```t``` and ```u```, the multi-band model concatenates matrices horizontally. In addition, the exchange $J$ and $U_{ijjj}$ parameters, with zeros on the diagonals as these are included in ```u```, are implemented as well. Since those parameters are usually rather small, ```U13``` is an optional argument. Furthermore, parameters of the form $U_{ijkk}$ and $U_{ijkl}$ can be implemented by providing dictionaries as kwargs tot the structure
-```
-U112 = Dict((1,1,2,3) => 0.0, (1,2,4,2) => 0.0) # and so on ...
-U1111 = Dict((1,2,3,4) => 0.0, (3,2,4,1) => 0.0) # ...
-model = MB_Sim(t, U, J, U13, P, Q, s, bond_dim; code = name, U112=U112, U1111=U1111)
-```
-An index $i$ larger than $B$ corresponds to band $i$ modulo $B$ on site $⌊i/B⌋$.
+### Notes
 
-For a ```MBC_Sim()``` structure, we would have
-```
-model_MBC = MBC_Sim(t, u, J, s, bond_dim; code=name);
-```
-The chemical potential is included in the diagonal terms of ```t_onsite```. Iterative determination of the chemical potential for a certain filling is not yet supported.
+- The `SymmetryConfig` object defines all symmetry information of the model:
+  - The **particle** and **spin** symmetries (`Trivial`, `U1Irrep`, or `SU2Irrep`)
+  - The **number of sites in the unit cell** (`cell_width`)
+  - The **filling fraction**, defined by `N_electrons / N_sites` via the keyword `filling=(N_electrons, N_sites)`
+- The `ModelParams` constructor shown above is the simplest form, suitable for single-band Hubbard models.
 
-## Ground state
-The ground state of a model is computed (or loaded if it has been computed before) by the function ```produce_groundstate()```. We can then extract the ground state energy as the expectation value of the Hamiltonian with respect to the ground state.
-```
-dictionary = produce_groundstate(model; path=path);
-ψ₀ = dictionary["groundstate"];
-H = dictionary["ham"];
-E0 = expectation_value(ψ₀, H);
-E = real(E0)./length(H);
-println("Groundstate energy: $E")
-```
-Other properties, such as the bond dimension, the electron density and spin density (if it was a calculation without SU(2) symmetry), can be calculated as well.
-```
-println("Bond dimension: $(dim_state(ψ₀))")
-println("Electron density: $(density_state(ψ₀))")
-println("Spin density: $(density_spin(ψ₀))")
-```
-> **NOTE:**
-> When the parameters are changed but you want to keep the name of the model the same, you should put ```force=true``` to overwrite the previous results, obtained with the old parameters, or store the calculation at a different ```path```. Be cautious for accidentally overwriting data that you want to keep!
+---
 
-## Excited states
-To compute quasiparticle excitations we have to choose the momentum, the number of excitations, and the symmetry sectors. 
-```
-resolution = 5;
-momenta = range(0, π, resolution);
-nums = 1;
+## ⚙️ General Multi-Band Model
 
-exc = produce_excitations(model, momenta, nums; charges=[0,0.0,0], path=path);
-Es = exc["Es"];
-println("Excitation energies: ")
-println(Es)
-```
-Excitations in the same sector as the ground state are found by defining ```charges``` as zeros. These charges refer to the difference with the ground state. Be aware that the meaning of the charges in this vector differ depending on the symmetries and thus on the type of model. ```OBC_Sim``` and ```MBC_Sim``` even have only two symmetries, and hence, two charges.
+The example below illustrates a **two-band Hubbard model** with custom hopping and interaction terms.
 
-For example, a spin symmetric, electron conserving model has symmetry $\mathbb{Z}_2\times SU(2)\times U(1)$. Sectors obtained by adding a particle or hole differ by ```charges = [1,1/2,+/-1]```. These single-particle excitations allow for the calculation of the band gap.
+```julia
+using HubbardTN
+using TensorKit
+
+# Step 1: Define the symmetries
+particle_symmetry = U1Irrep
+spin_symmetry = SU2Irrep
+cell_width = 2
+filling = (1, 1)
+
+symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width, filling)
+
+# Step 2: Define model parameters
+bands = 2
+
+# Hopping amplitudes:
+# (1,2) and (2,1): inter-band hopping
+# (2,3) and (3,2): next-nearest-neighbor hopping across unit cells
+t = Dict((1,2)=>1.0, (2,1)=>1.0, (2,3)=>0.5, (3,2)=>0.5)
+
+# Interaction terms:
+# (i,j,k,l) correspond to U_ijkl c⁺_i c⁺_j c_k c_l
+U = Dict(
+    (1,1,1,1) => 8.0,   # on-site band 1
+    (2,2,2,2) => 8.0,   # on-site band 2
+    (1,2,1,2) => 1.0,   # inter-orbital exchange
+    (2,1,2,1) => 1.0
+)
+
+model = ModelParams(bands, t, U)
+calc = CalcConfig(symm, model)
+
+# Step 3: Compute the ground state
+gs = compute_groundstate(calc)
+ψ = gs["groundstate"]
+H = gs["ham"]
+
+println("Ground-state energy density: ", expectation_value(ψ, H) / length(H))
+
+# Step 4: Compute first excitations
+momenta = collect(range(0, 2π, length = 10))
+charges = [0.0, 0.0, 0.0]
+ex = compute_excitations(gs, momenta, charges)
 ```
-gap, k = produce_bandgap(model; path=path)
-println("Band Gap for s=$s: $gap eV at momentum $k")
-```
+
+### Notes
+
+- **Dictionaries** are used to define hopping (`t`) and interaction (`U`) parameters:
+  - Keys represent index tuples:
+    - `(i, j)` for hopping → corresponds to c⁺ᵢ cⱼ
+    - `(i, j, k, l)` for interactions → corresponds to c⁺ᵢ c⁺ⱼ cₖ cₗ
+  - Indices larger than the number of bands refer to orbitals in neighboring unit cells.
+- This flexible formulation allows the user to specify *arbitrary band connectivity* and *interaction structure*.
+- Beyond the usual on-site interactions, exchange or other couplings can be included naturally.
+
+---
+
+📘 **Tip:**  
+For advanced use cases (custom operators, constrained symmetry sectors, or DMRG sweep control), see the API reference for  
+[`compute_groundstate`](@ref), [`compute_excitations`](@ref), and [`ModelParams`](@ref).

@@ -17,21 +17,13 @@ println("Starting tests")
 ti = time()
 
 @time begin
-    if GROUP == "ALL" || GROUP == "OB"
-        @time include("OB.jl")
+    if GROUP == "ALL" || GROUP == "OneBand"
+        @time include("OneBand.jl")
     end
-    if GROUP == "ALL" || GROUP == "MB"
-        @time include("MB.jl")
+    if GROUP == "ALL" || GROUP == "MultiBand"
+        @time include("MultiBand.jl")
     end
-    if GROUP == "ALL" || GROUP == "OBC"
-        @time include("OBC.jl")
-    end
-    if GROUP == "ALL" || GROUP == "MBC"
-        @time include("MBC.jl")
-    end
-    if GROUP == "ALL" || GROUP == "SPIN"
-        @time include("Spin.jl")
-    end
+
 end
 
 ti = time() - ti
@@ -40,6 +32,8 @@ println(round(ti/60, digits = 3), " minutes")
 
 println("
 Not included in tests:
-- Tools.
-- Uiiij, Uijkk, Uijkl interaction.
+- Equivalence of different symmetries.
+- find_chemical_potential().
+- compute_domainwall().
+- Saving tools.
 ")
