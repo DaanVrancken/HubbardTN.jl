@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · HubbardTN.jl</title><meta name="title" content="Examples · HubbardTN.jl"/><meta property="og:title" content="Examples · HubbardTN.jl"/><meta property="twitter:title" content="Examples · HubbardTN.jl"/><meta name="description" content="Documentation for HubbardTN.jl."/><meta property="og:description" content="Documentation for HubbardTN.jl."/><meta property="twitter:description" content="Documentation for HubbardTN.jl."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">HubbardTN.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../Functions/">Library</a></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li><a class="tocitem" href="#Minimal-Example"><span>🧩 Minimal Example</span></a></li><li><a class="tocitem" href="#General-Multi-Band-Model"><span>⚙️ General Multi-Band Model</span></a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/DaanVrancken/HubbardTN.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/DaanVrancken/HubbardTN.jl/blob/master/docs/src/Examples.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Examples"><a class="docs-heading-anchor" href="#Examples">Examples</a><a id="Examples-1"></a><a class="docs-heading-anchor-permalink" href="#Examples" title="Permalink"></a></h1><p>This page demonstrates how to use <strong>HubbardTN</strong> to build and solve different 1D Hubbard models using tensor networks.</p><p>Two examples are provided:</p><ol><li>A <strong>minimal single-band Hubbard model</strong></li><li>A <strong>general multi-band Hubbard model</strong></li></ol><hr/><h2 id="Minimal-Example"><a class="docs-heading-anchor" href="#Minimal-Example">🧩 Minimal Example</a><a id="Minimal-Example-1"></a><a class="docs-heading-anchor-permalink" href="#Minimal-Example" title="Permalink"></a></h2><pre><code class="language-julia hljs">using HubbardTN
+using TensorKit
+
+# Step 1: Define the symmetries
+particle_symmetry = U1Irrep
+spin_symmetry = U1Irrep
+cell_width = 2
+filling = (1, 1)
+
+symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width, filling)
+
+# Step 2: Set up model parameters
+t = [0.0, 1.0]   # [chemical_potential, nn_hopping, nnn_hopping, ...]
+U = [4.0]        # [on-site interaction, nn_interaction, ...]
+
+model = ModelParams(t, U)
+calc = CalcConfig(symm, model)
+
+# Step 3: Compute the ground state
+gs = compute_groundstate(calc)
+ψ = gs[&quot;groundstate&quot;]
+H = gs[&quot;ham&quot;]
+
+println(&quot;Ground-state energy density: &quot;, expectation_value(ψ, H) / length(H))
+
+# Step 4: Compute first excitation in fZ2(0) × U1Irrep(0) × U1Irrep(0) sector
+momenta = collect(range(0, 2π, length = 10))
+charges = [0.0, 0.0, 0.0]
+ex = compute_excitations(gs, momenta, charges)</code></pre><h3 id="Notes"><a class="docs-heading-anchor" href="#Notes">Notes</a><a id="Notes-1"></a><a class="docs-heading-anchor-permalink" href="#Notes" title="Permalink"></a></h3><ul><li>The <code>SymmetryConfig</code> object defines all symmetry information of the model:<ul><li>The <strong>particle</strong> and <strong>spin</strong> symmetries (<code>Trivial</code>, <code>U1Irrep</code>, or <code>SU2Irrep</code>)</li><li>The <strong>number of sites in the unit cell</strong> (<code>cell_width</code>)</li><li>The <strong>filling fraction</strong>, defined by <code>N_electrons / N_sites</code> via the keyword <code>filling=(N_electrons, N_sites)</code></li></ul></li><li>The <code>ModelParams</code> constructor shown above is the simplest form, suitable for single-band Hubbard models.</li></ul><hr/><h2 id="General-Multi-Band-Model"><a class="docs-heading-anchor" href="#General-Multi-Band-Model">⚙️ General Multi-Band Model</a><a id="General-Multi-Band-Model-1"></a><a class="docs-heading-anchor-permalink" href="#General-Multi-Band-Model" title="Permalink"></a></h2><p>The example below illustrates a <strong>two-band Hubbard model</strong> with custom hopping and interaction terms.</p><pre><code class="language-julia hljs">using HubbardTN
+using TensorKit
+
+# Step 1: Define the symmetries
+particle_symmetry = U1Irrep
+spin_symmetry = SU2Irrep
+cell_width = 2
+filling = (1, 1)
+
+symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width, filling)
+
+# Step 2: Define model parameters
+bands = 2
+
+# Hopping amplitudes:
+# (1,2) and (2,1): inter-band hopping
+# (2,3) and (3,2): next-nearest-neighbor hopping across unit cells
+t = Dict((1,2)=&gt;1.0, (2,1)=&gt;1.0, (2,3)=&gt;0.5, (3,2)=&gt;0.5)
+
+# Interaction terms:
+# (i,j,k,l) correspond to U_ijkl c⁺_i c⁺_j c_k c_l
+U = Dict(
+    (1,1,1,1) =&gt; 8.0,   # on-site band 1
+    (2,2,2,2) =&gt; 8.0,   # on-site band 2
+    (1,2,1,2) =&gt; 1.0,   # inter-orbital exchange
+    (2,1,2,1) =&gt; 1.0
+)
+
+model = ModelParams(bands, t, U)
+calc = CalcConfig(symm, model)
+
+# Step 3: Compute the ground state
+gs = compute_groundstate(calc)
+ψ = gs[&quot;groundstate&quot;]
+H = gs[&quot;ham&quot;]
+
+println(&quot;Ground-state energy density: &quot;, expectation_value(ψ, H) / length(H))
+
+# Step 4: Compute first excitations
+momenta = collect(range(0, 2π, length = 10))
+charges = [0.0, 0.0, 0.0]
+ex = compute_excitations(gs, momenta, charges)</code></pre><h3 id="Notes-2"><a class="docs-heading-anchor" href="#Notes-2">Notes</a><a class="docs-heading-anchor-permalink" href="#Notes-2" title="Permalink"></a></h3><ul><li><strong>Dictionaries</strong> are used to define hopping (<code>t</code>) and interaction (<code>U</code>) parameters:<ul><li>Keys represent index tuples:<ul><li><code>(i, j)</code> for hopping → corresponds to c⁺ᵢ cⱼ</li><li><code>(i, j, k, l)</code> for interactions → corresponds to c⁺ᵢ c⁺ⱼ cₖ cₗ</li></ul></li><li>Indices larger than the number of bands refer to orbitals in neighboring unit cells.</li></ul></li><li>This flexible formulation allows the user to specify <em>arbitrary band connectivity</em> and <em>interaction structure</em>.</li><li>Beyond the usual on-site interactions, exchange or other couplings can be included naturally.</li></ul><hr/><p>📘 <strong>Tip:</strong>   For advanced use cases (custom operators, constrained symmetry sectors, or DMRG sweep control), see the API reference for   <a href="../Functions/#HubbardTN.compute_groundstate-Tuple{CalcConfig}"><code>compute_groundstate</code></a>, <a href="../Functions/#HubbardTN.compute_excitations-Tuple{Dict{String, Any}, Union{Float64, Vector{Float64}}, Union{Vector{Float64}, Vector{Int64}}}"><code>compute_excitations</code></a>, and <a href="../Functions/#HubbardTN.ModelParams"><code>ModelParams</code></a>.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../Functions/">« Library</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.15.0 on <span class="colophon-date" title="Friday 24 October 2025 15:06">Friday 24 October 2025</span>. Using Julia version 1.11.7.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
