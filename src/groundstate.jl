@@ -1,111 +1,139 @@
-###############
-# Groundstate #
-###############
+##################
+# Initialize MPS #
+##################
 
-function initialize_mps(operator, P::Int64, max_dimension::Int64, spin::Bool)
-    Ps = physicalspace.(parent(operator))
-    L = length(Ps)
+function build_virtualspace(I, charge_ranges::Tuple, maxdim::Int)
+    base_key = ntuple(_ -> 0, length(charge_ranges))
+    base_key = length(base_key) == 1 ? base_key[1] : base_key
+
+    V = Vect[(I)](base_key => 1)
+    for key in Iterators.product(charge_ranges...)
+        k = length(key) == 1 ? key[1] : key
+        V = V ⊕ Vect[(I)](k => maxdim)
+    end
+    return V
+end
+
+function maximal_virtualspace(::Type{Trivial}, ::Type{Trivial}, total_width::Int, maxdim::Int, P::Int)
+    return build_virtualspace(FermionParity, ((0:1),), maxdim)
+end
+function maximal_virtualspace(::Type{Trivial}, ::Type{U1Irrep}, total_width::Int, maxdim::Int, P::Int)
+    return build_virtualspace(FermionParity ⊠ U1Irrep, (0:1, -total_width:1//2:total_width), maxdim)
+end
+function maximal_virtualspace(::Type{Trivial}, ::Type{SU2Irrep}, total_width::Int, maxdim::Int, P::Int)
+    return build_virtualspace(FermionParity ⊠ SU2Irrep, (0:1, 0:1//2:3), maxdim)
+end
+function maximal_virtualspace(::Type{U1Irrep}, ::Type{Trivial}, total_width::Int, maxdim::Int, P::Int)
+    return build_virtualspace(FermionParity ⊠ U1Irrep, (0:1, -total_width*P:total_width*P), maxdim)
+end
+function maximal_virtualspace(::Type{U1Irrep}, ::Type{U1Irrep}, total_width::Int, maxdim::Int, P::Int)
+    return build_virtualspace(FermionParity ⊠ U1Irrep ⊠ U1Irrep,
+                        (0:1, -total_width*P:total_width*P, -total_width:1//2:total_width), maxdim)
+end
+function maximal_virtualspace(::Type{U1Irrep}, ::Type{SU2Irrep}, total_width::Int, maxdim::Int, P::Int)
+    return build_virtualspace(FermionParity ⊠ U1Irrep ⊠ SU2Irrep,
+                        (0:1, -total_width*P:total_width*P, 0:1//2:3), maxdim)
+end
+function maximal_virtualspace(::Type{SU2Irrep}, ::Type{Trivial}, total_width::Int, maxdim::Int, P::Int)
+    return build_virtualspace(FermionParity ⊠ SU2Irrep, (0:1, 0:1//2:3), maxdim)
+end
+function maximal_virtualspace(::Type{SU2Irrep}, ::Type{U1Irrep}, total_width::Int, maxdim::Int, P::Int)
+    return build_virtualspace(FermionParity ⊠ SU2Irrep ⊠ U1Irrep,
+                        (0:1, 0:1//2:3, -total_width:1//2:total_width), maxdim)
+end
+function maximal_virtualspace(::Type{SU2Irrep}, ::Type{SU2Irrep}, total_width::Int, maxdim::Int, P::Int)
+    return build_virtualspace(FermionParity ⊠ SU2Irrep ⊠ SU2Irrep, (0:1, 0:1//2:3, 0:1//2:3), maxdim)
+end
+
+function initialize_mps(symm::SymmetryConfig, total_width::Int; max_dimension::Int=50)
+    ps = hubbard_space(symm.particle_symmetry, symm.spin_symmetry; filling=symm.filling)
+    Ps = [ps for _ in 1:total_width]
+
+    # Compute left and right fusion spaces
     V_right = accumulate(fuse, Ps)
-    
-    V_l = accumulate(fuse, dual.(Ps); init=one(first(Ps)))
-    V_left = reverse(V_l)
+    V_left = accumulate(fuse, dual.(Ps); init=one(first(Ps))) |> reverse
     len = length(V_left)
-    step = length(V_left)-1
-    V_left = [view(V_left,len-step+1:len); view(V_left,1:len-step)]   # same as circshift(V_left,1)
+    step = len - 1
+    V_left = [view(V_left, len - step + 1:len); view(V_left, 1:len - step)]
 
+    # Intersect left and right spaces
     V = TensorKit.infimum.(V_left, V_right)
 
-    if !spin
-        Vmax = Vect[(FermionParity ⊠ Irrep[SU₂] ⊠ Irrep[U₁])]((0,0,0)=>1)     # find maximal virtual space
-        for i in 0:1
-            for j in 0:1//2:3
-                for k in -(L*P):1:(L*P)
-                    Vmax = Vect[(FermionParity ⊠ Irrep[SU₂] ⊠ Irrep[U₁])]((i,j,k)=>max_dimension) ⊕ Vmax
-                end
-            end
-        end
-    else
-        Vmax = Vect[(FermionParity ⊠ Irrep[U₁] ⊠ Irrep[U₁])]((0,0,0)=>1)
-        for i in 0:1
-            for j in -L:1:L
-                for k in -(L*P):1:(L*P)
-                    Vmax = Vect[(FermionParity ⊠ Irrep[U₁] ⊠ Irrep[U₁])]((i,j,k)=>max_dimension) ⊕ Vmax
-                end
-            end
-        end
-    end
+    # Construct maximal symmetry-allowed virtual space
+    P = symm.filling === nothing ? 1 : symm.filling[1]
+    Vmax = maximal_virtualspace(symm.particle_symmetry, symm.spin_symmetry, total_width, max_dimension, P)
 
-    V_max = copy(V)
-
-    for i in 1:length(V_right)
-        V_max[i] = Vmax
-    end
-
-    V_trunc = TensorKit.infimum.(V,V_max)
+    V_trunc = TensorKit.infimum.(V, fill(Vmax, length(V)))
 
     return InfiniteMPS(Ps, V_trunc)
 end
 
-function initialize_mps(operator, max_dimension::Int64)
-    Ps = physicalspace.(parent(operator))
 
-    V_right = accumulate(fuse, Ps)
+####################
+# Find groundstate #
+####################
+
+"""
+    compute_groundstate(calc::CalcConfig;
+                        svalue::Float64=2.0,
+                        tol::Float64=1e-8,
+                        init_state::Union{Nothing, InfiniteMPS}=nothing,
+                        maxiter::Int=1000,
+                        max_init_dim::Int=50,
+                        verbosity::Int=0)
+
+Compute the ground state of the Hamiltonian defined by the CalcConfig `calc`.
+
+# Keyword Arguments
+- `svalue::Float64=2.0`: 
+    Exponent used to define the truncation cutoff as `10^(-svalue)` for Schmidt value truncation.
+- `tol::Float64=1e-8`: 
+    Convergence tolerance for iterative solvers (used by VUMPS or IDMRG2).
+- `init_state::Union{Nothing, InfiniteMPS}=nothing`: 
+    Optional initial infinite MPS. If not provided, a random symmetry-consistent MPS.
+- `maxiter::Int=1000`: 
+    Maximum number of iterations for ground state optimization.
+- `max_init_dim::Int=50`: 
+    Maximum bond dimension for the initial MPS construction.
+- `verbosity::Int=0`: 
+    Controls the level of printed output from the solver.
+
+# Returns
+A `Dict` with the following entries:
+- `"groundstate"` → optimized infinite MPS representing the ground state.
+- `"environments"` → left and right environment tensors.
+- `"ham"` → Hamiltonian MPO used in the optimization.
+- `"error"` → final convergence error.
+"""
+function compute_groundstate(
+                calc::CalcConfig;
+                svalue::Float64=2.0,
+                tol::Float64=1e-8, 
+                init_state::Union{Nothing, InfiniteMPS}=nothing,
+                maxiter::Int64=1000,
+                max_init_dim::Int=50,
+                verbosity::Int64=0
+            )
+    H = hamiltonian(calc)
+
+    symm = calc.symmetries
+    total_width = calc.model.bands * symm.cell_width
+    ψ₀ = isnothing(init_state) ? initialize_mps(symm, total_width; max_dimension=max_init_dim) : init_state
+
+    schmidtcut = 10.0^(-svalue)
+    tol = max(tol, schmidtcut/10)
     
-    V_l = accumulate(fuse, dual.(Ps); init=one(first(Ps)))
-    V_left = reverse(V_l)
-    len = length(V_left)
-    step = length(V_left)-1
-    V_left = [view(V_left,len-step+1:len); view(V_left,1:len-step)]   # same as circshift(V_left,1)
-
-    V = TensorKit.infimum.(V_left, V_right)
-
-    Vmax = Vect[(FermionParity ⊠ Irrep[SU₂])]((0,0)=>1)     # find maximal virtual space
-
-    for i in 0:1
-        for j in 0:1//2:3
-            Vmax = Vect[(FermionParity ⊠ Irrep[SU₂])]((i,j)=>max_dimension) ⊕ Vmax
-        end
-    end
-
-    V_max = copy(V)      # if no copy(), V will change along when V_max is changed
-
-    for i in 1:length(V_right)
-        V_max[i] = Vmax
-    end
-
-    V_trunc = TensorKit.infimum.(V,V_max)
-
-    return InfiniteMPS(Ps, V_trunc)
-end
-
-function compute_groundstate(simul::Union{OB_Sim, MB_Sim, OBC_Sim2, MBC_Sim}; tol::Float64=1e-6, verbosity::Int64=0, maxiter::Int64=1000)
-    H = hamiltonian(simul)
-    spin::Bool = get(simul.kwargs, :spin, false)
-    init_state = get(simul.kwargs, :init_state, nothing)
-
-    if isnothing(init_state)
-        if hasproperty(simul, :P)
-            ψ₀ = initialize_mps(H,simul.P,simul.bond_dim,spin)
-        else
-            ψ₀ = initialize_mps(H,simul.bond_dim)
-        end
+    if total_width > 1
+        ψ₀, envs, = find_groundstate(ψ₀, H, IDMRG2(; maxiter=maxiter, trscheme=truncbelow(schmidtcut), tol=tol, verbosity=verbosity))
     else
-        ψ₀ = init_state
-    end
-    
-    schmidtcut = 10.0^(-simul.svalue)
-    
-    if length(H) > 1
-        ψ₀, envs, = find_groundstate(ψ₀, H, IDMRG2(; trscheme=truncbelow(schmidtcut), tol=tol, verbosity=verbosity))
-    else
-        ψ₀, envs, = find_groundstate(ψ₀, H, VUMPS(; tol=max(tol, schmidtcut/10), verbosity=verbosity))
+        ψ₀, envs, = find_groundstate(ψ₀, H, VUMPS(; maxiter=maxiter, tol=tol, verbosity=verbosity))
         ψ₀ = changebonds(ψ₀, SvdCut(; trscheme=truncbelow(schmidtcut)))
-        χ = sum(i -> dim(left_virtualspace(ψ₀, i)), 1:length(H))
+        χ = sum(i -> dim(left_virtualspace(ψ₀, i)), 1:total_width)
         for i in 1:maxiter
             ψ₀, envs = changebonds(ψ₀, H, VUMPSSvdCut(;trscheme=truncbelow(schmidtcut)))
             ψ₀, = find_groundstate(ψ₀, H, VUMPS(; tol=max(tol, schmidtcut / 10), verbosity=verbosity), envs)
             ψ₀ = changebonds(ψ₀, SvdCut(; trscheme=truncbelow(schmidtcut)))
-            χ′ = sum(i -> dim(left_virtualspace(ψ₀, i)), 1:length(H))
+            χ′ = sum(i -> dim(left_virtualspace(ψ₀, i)), 1:total_width)
             isapprox(χ, χ′; rtol=0.05) && break
             χ = χ′
         end
@@ -115,10 +143,30 @@ function compute_groundstate(simul::Union{OB_Sim, MB_Sim, OBC_Sim2, MBC_Sim}; to
         GradientGrassmann(; maxiter=maxiter, tol=tol, verbosity=verbosity)
     ψ, envs, δ = find_groundstate(ψ₀, H, alg)
     
-    return Dict("groundstate" => ψ, "environments" => envs, "ham" => H, "delta" => δ, "config" => simul)
+    return Dict("groundstate" => ψ, "environments" => envs, "ham" => H, "error" => δ)
 end
 
-function compute_groundstate(simul::OBC_Sim; tol::Float64=1e-6, verbosity::Int64=0, maxiter::Int64=1000)
+"""
+    find_chemical_potential(calc::CalcConfig;
+                            svalue::Float64=2.0,
+                            tol::Float64=1e-8,
+                            init_state::Union{Nothing, InfiniteMPS}=nothing,
+                            maxiter::Int=1000,
+                            max_init_dim::Int=50,
+                            verbosity::Int=0)
+                            
+Find the chemical potential μ that yields the desired filling in the ground state.
+"""
+function find_chemical_potential(
+                calc::CalcConfig;
+                svalue::Float64=2.0,
+                tol::Float64=1e-8, 
+                init_state::Union{Nothing, InfiniteMPS}=nothing,
+                maxiter::Int64=1000,
+                max_init_dim::Int=50,
+                verbosity::Int64=0
+            )
+    error("Not yet implemnted.")
     verbosity_mu = get(simul.kwargs, :verbosity_mu, 0)
     t = simul.t
     u = simul.u
@@ -212,44 +260,4 @@ function compute_groundstate(simul::OBC_Sim; tol::Float64=1e-6, verbosity::Int64
     end
 
     return dictionary
-end
-
-"""
-    produce_groundstate(model::Simulation; force::Bool=false, path::String="")
-
-Compute or load groundstate of the `model`. It can be stored at or loaded from `path`. If `force=true`, overwrite existing calculation.
-"""
-function produce_groundstate(simul::Union{MB_Sim, MBC_Sim}; force::Bool=false, path::String="")
-    code = get(simul.kwargs, :code, "")
-    S = "nospin_"
-    spin::Bool = get(simul.kwargs, :spin, false)
-    if spin
-        S = "spin_"
-    end
-
-    data, _ = produce_or_load(compute_groundstate, simul, path; prefix="groundstate_"*S*code, force=force)
-    return data
-end
-
-function produce_groundstate(simul::Union{OB_Sim, OBC_Sim}; force::Bool=false, path::String="")
-    t = simul.t 
-    u = simul.u
-    if hasproperty(simul, :J)
-        J = simul.J
-    else
-        J = 0
-    end
-    S_spin = "nospin_"
-    spin::Bool = get(simul.kwargs, :spin, false)
-    if spin
-        S_spin = "spin_"
-    end
-    U13::Vector{Float64} = get(simul.kwargs, :U13, [0.0])
-    JMs::Tuple{Float64, Float64} = get(simul.kwargs, :JMs, (0.0,0.0))
-    J_inter = JMs[1]
-    Ms = JMs[2]
-    S = "groundstate_"*S_spin*"t$(t)_u$(u)_J$(J)_U13$(U13)_JMs$(J_inter)_$(Ms)"
-    S = replace(S, ", " => "_")
-    data, _ = produce_or_load(compute_groundstate, simul, path; prefix=S, force=force)
-    return data
 end

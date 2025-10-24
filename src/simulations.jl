@@ -1,201 +1,278 @@
-abstract type Simulation end
-name(s::Simulation) = string(typeof(s))
-
-function Base.string(s::TensorKit.ProductSector{Tuple{FermionParity,SU2Irrep,U1Irrep}})
-    parts = map(x -> sprint(show, x; context=:typeinfo => typeof(x)), s.sectors)
-    return "[fℤ₂×SU₂×U₁]$(parts)"
-end
-
-function Base.string(s::TensorKit.ProductSector{Tuple{FermionParity,U1Irrep,U1Irrep}})
-    parts = map(x -> sprint(show, x; context=:typeinfo => typeof(x)), s.sectors)
-    return "[fℤ₂×U₁×U₁]$(parts)"
-end
-
-function Base.string(s::TensorKit.ProductSector{Tuple{FermionParity,SU2Irrep}})
-    parts = map(x -> sprint(show, x; context=:typeinfo => typeof(x)), s.sectors)
-    return "[fℤ₂×SU₂]$(parts)"
-end
+##########################
+# Symmetry configuration #
+##########################
 
 """
-    OB_Sim(t::Vector{Float64}, u::Vector{Float64}, μ=0.0, J::Vector{Float64}=[0.0], P=1, Q=1, svalue=2.0, bond_dim=50, period=0; kwargs...)
+    SymmetryConfig(particle_symmetry, spin_symmetry; cell_width=1, filling=nothing)
 
-Construct a parameter set for a 1D one-band Hubbard model with a fixed number of particles.
+Represents the symmetry configuration of a lattice system, including particle and spin symmetries,
+unit cell width, and optional filling information.
 
-# Arguments
-- `t`: Vector in which element ``n`` is the value of the hopping parameter of distance ``n``. The first element is the nearest-neighbour hopping.
-- `u`: Vector in which element ``n`` is the value of the Coulomb interaction with site at distance ``n-1``. The first element is the on-site interaction.
-- `J`: Vector in which element ``n`` is the value of the exchange interaction with site at distance ``n``. The first element is the nearest-neighbour exchange.
-- `µ`: The chemical potential.
-- `P`,`Q`: The ratio `P`/`Q` defines the number of electrons per site, which should be larger than 0 and smaller than 2.
-- `svalue`: The Schmidt truncation value, used to truncate in the iDMRG2 algorithm for the computation of the groundstate.
-- `bond_dim`: The maximal bond dimension used to initialize the state.
-- `Period`: Perform simulations on a helix with circumference `Period`. Value 0 corresponds to an infinite chain.
+# Fields
+- `particle_symmetry` : Union{Type{Trivial}, Type{U1Irrep}, Type{SU2Irrep}}
+    - The symmetry type for particle number. Use `Trivial` for no symmetry, `U1Irrep` for U(1) symmetry, or `SU2Irrep` for SU(2) symmetry.
+- `spin_symmetry` : Union{Type{Trivial}, Type{U1Irrep}, Type{SU2Irrep}}
+    - The symmetry type for spin degrees of freedom.
+- `cell_width` : Int64
+    - Number of sites in the unit cell. Must be a positive integer. Defaults to 1.
+- `filling` : Union{Nothing, Tuple{Int64, Int64}}
+    - Optional particle filling specified as a fraction `(numerator, denominator)`. Only allowed if `particle_symmetry` is `U1Irrep`. 
+    Otherwise the filling is determined by the chemical potential.
 
-The optional argument `init_state` can be used to provide an initial guess for the groundstate search.
-    
-Put the optional argument `spin=true` to perform spin-dependent calculations.
+# Constructor Behavior
+- If `filling` is provided, the constructor checks that `particle_symmetry == U1Irrep`.
+- `cell_width` must be positive.
+- If `particle_symmetry` is `U1Irrep` and `filling` is specified, the constructor ensures that `cell_width` is a multiple of
+  `filling[2] * (mod(filling[1], 2) + 1)` to accommodate the specified filling.
+
+# Examples
+```julia
+# Trivial particle and spin symmetry, default cell width
+cfg1 = SymmetryConfig(Trivial, Trivial)
+
+# U(1) particle symmetry with SU(2) spin symmetry, cell width 2, filling 1/2
+cfg2 = SymmetryConfig(U1Irrep, SU2Irrep, cell_width=2, filling=(1,2))
 """
-struct OB_Sim <: Simulation
-    t::Vector{Float64}
-    u::Vector{Float64}
-    μ::Float64
-    J::Vector{Float64}
-    P::Int64
-    Q::Int64
-    svalue::Float64
-    bond_dim::Int64
-    period::Int64
-    kwargs
-    function OB_Sim(t::Vector{Float64}, u::Vector{Float64}, μ::Float64=0.0, J::Vector{Float64}=[0.0], P::Int64=1, Q::Int64=1, svalue=2.0, bond_dim = 50, period = 0; kwargs...)
-        return new(t, u, μ, J, P, Q, svalue, bond_dim, period, kwargs)
-    end
-end
-name(::OB_Sim) = "OB"
+struct SymmetryConfig
+    particle_symmetry::Union{Type{Trivial},Type{U1Irrep},Type{SU2Irrep}}
+    spin_symmetry::Union{Type{Trivial},Type{U1Irrep},Type{SU2Irrep}}
+    cell_width::Int64
+    filling::Union{Nothing,Tuple{Int64,Int64}}
 
-"""
-    MB_Sim(t::Matrix{Float64}, u::Matrix{Float64}, J::Matrix{Float64}, U13::Matrix{Float64}, P=1, Q=1, svalue=2.0, bond_dim=50; kwargs...)
+    function SymmetryConfig(
+                particle_symmetry::Union{Type{Trivial},Type{U1Irrep},Type{SU2Irrep}},
+                spin_symmetry::Union{Type{Trivial},Type{U1Irrep},Type{SU2Irrep}},
+                cell_width::Int64,
+                filling::Union{Nothing,Tuple{Int64,Int64}}=nothing
+            )
+        @assert cell_width > 0 "Cell width must be a positive integer"
 
-Construct a parameter set for a 1D B-band Hubbard model with a fixed number of particles.
-
-# Arguments
-- `t`: Bx(nB) matrix in which element ``(i,j)`` is the hopping parameter from band ``i`` to band ``j``. The on-site, nearest neighbour, next-to-nearest neighbour... hopping matrices are concatenated horizontally.
-- `u`: Bx(nB) matrix in which element ``(i,j)`` is the Coulomb repulsion ``U_{ij}=U_{iijj}`` between band ``i`` and band ``j``. The on-site, nearest neighbour, next-to-nearest neighbour... matrices are concatenated horizontally.
-- `J`: Bx(nB) matrix in which element ``(i,j)`` is the exchange ``J_{ij}=U_{ijji}=U_{ijij}`` between band ``i`` and band ``j``. The on-site, nearest neighbour, next-to-nearest neighbour... matrices are concatenated horizontally. The diagonal terms of the on-site matrix are ignored.
-- `U13`: BxB matrix in which element ``(i,j)`` is the parameter ``U_{ijjj}=U_{jijj}=U_{jjij}=U_{jjji}`` between band ``i`` and band ``j``. Only on-site. The diagonal terms of the on-site matrix are ignored. This argument is optional.
-- `P`,`Q`: The ratio `P`/`Q` defines the number of electrons per site, which should be larger than 0 and smaller than 2.
-- `svalue`: The Schmidt truncation value, used to truncate in the iDMRG2 algorithm for the computation of the groundstate.
-- `bond_dim`: The maximal bond dimension used to initialize the state.
-
-Put the optional argument 'spin=true' to perform spin-dependent calculations. 
-
-U13 inter-site, Uijkk, and Uijkl can be inserted using kwargs.
-
-The optional argument `init_state` can be used to provide an initial guess for the groundstate search.
-
-Use the optional argument `name` to assign a name to the model. 
-This is used to destinguish between different parameter sets: Wrong results could be loaded or overwritten if not used consistently!!!
-"""
-struct MB_Sim <: Simulation
-    t::Matrix{Float64}                        #convention: number of bands = number of rows, BxB for on-site + Bx(B*range) matrix for IS
-    u::Matrix{Float64}                        #convention: BxB matrix for OS (with OB on diagonal) + Bx(B*range) matrix for IS
-    J::Matrix{Float64}                        #convention: BxB matrix for OS (with OB zeros) + Bx(B*range) matrix for IS
-    U13::Matrix{Float64}                      #Matrix with iiij, iiji... parameters. Same convention.
-    P::Int64
-    Q::Int64
-    svalue::Float64
-    bond_dim::Int64
-    kwargs
-    function MB_Sim(t::Matrix{Float64}, u::Matrix{Float64}, J::Matrix{Float64}, P=1, Q=1, svalue=2.0, bond_dim = 50; kwargs...)
-        Bands,_ = size(t)
-        return new(t, u, J, zeros(Bands,Bands), P, Q, svalue, bond_dim, kwargs)
-    end
-    function MB_Sim(t::Matrix{Float64}, u::Matrix{Float64}, J::Matrix{Float64}, U13::Matrix{Float64}, P=1, Q=1, svalue=2.0, bond_dim = 50; kwargs...)
-        return new(t, u, J, U13, P, Q, svalue, bond_dim, kwargs)
-    end
-end
-name(::MB_Sim) = "MB"
-
-"""
-    OBC_Sim(t::Vector{Float64}, u::Vector{Float64}, μf::Float64, svalue=2.0, bond_dim=50, period=0; mu=true, kwargs...)
-
-Construct a parameter set for a 1D one-band Hubbard model with the number of particles determined by a chemical potential.
-
-# Arguments
-- `t`: Vector in which element ``n`` is the value of the hopping parameter of distance ``n``. The first element is the nearest-neighbour hopping.
-- `u`: Vector in which element ``n`` is the value of the Coulomb interaction with site at distance ``n-1``. The first element is the on-site interaction.
-- `µf`: The chemical potential, if `mu=true`. Otherwise, the filling of the system. The chemical potential corresponding to the given filling is determined automatically.
-- `svalue`: The Schmidt truncation value, used to truncate in the iDMRG2 algorithm for the computation of the groundstate.
-- `bond_dim`: The maximal bond dimension used to initialize the state.
-- `Period`: Perform simulations on a helix with circumference `Period`. Value 0 corresponds to an infinite chain.
-
-Spin-dependent calculations are not yet implemented.
-"""
-struct OBC_Sim <: Simulation
-    t::Vector{Float64}
-    u::Vector{Float64}
-    μ::Union{Float64, Nothing}    # Imposed chemical potential
-    f::Union{Float64, Nothing}    # Fraction indicating the filling
-    svalue::Float64
-    bond_dim::Int64
-    period::Int64
-    kwargs
-    function OBC_Sim(t, u, μf::Float64, svalue=2.0, bond_dim = 50, period = 0; mu=true, kwargs...)
-        spin::Bool = get(kwargs, :spin, false)
-        if spin
-            error("Spin not implemented.")
+        if particle_symmetry == U1Irrep
+            filling = filling === nothing ? (1, 1) : filling
+            numerator, denominator = filling
+            @assert numerator > 0 && denominator > 0 "Filling components must be positive integers"
+            necessary_width = denominator * (mod(numerator, 2) + 1)
+            @assert cell_width % necessary_width == 0 "Cell width ($cell_width) must be a multiple of $necessary_width \
+                                                       to accommodate the specified filling ($numerator / $denominator)"
+        elseif filling !== nothing
+            error("Filling can only be specified when particle symmetry is U1Irrep, but got $(particle_symmetry).")
         end
-        if mu
-            return new(t, u, μf, nothing, svalue, bond_dim, period, kwargs)
-        else
-            if 0 < μf < 2
-                return new(t, u, nothing, μf, svalue, bond_dim, period, kwargs)
+
+        new(particle_symmetry, spin_symmetry, cell_width, filling)
+    end
+end
+
+
+####################
+# Model parameters #
+####################
+
+# Add interaction term and its Hermitian conjugate
+function addU!(U::Dict{NTuple{4,Int},T}, key::NTuple{4,Int}, val::T) where {T}
+    if val != 0 || key==(1,1,1,1)
+        U[key] = val
+        i,j,k,l = key
+        U[(l,k,j,i)] = conj(val)          # Hermitian conjugate term
+    end
+end
+# Convert hopping matrix to dictionary representation
+function hopping_matrix2dict(t::Union{Vector{T}, Matrix{T}}) where {T<:AbstractFloat}
+    hopping = Dict{NTuple{2,Int},T}()
+    bands = isa(t, Matrix) ? size(t,1) : 1
+    num_sites = isa(t, Matrix) ? size(t,2) ÷ bands : length(t)
+
+    @assert (isa(t, Matrix) && size(t,1) == bands) || isa(t, Vector) "First dimension of t ($(size(t,1))) must be equal to number of bands ($bands)"
+    @assert (isa(t, Matrix) && size(t,2) % bands == 0) || isa(t, Vector) "Second dimension of t ($(size(t,2))) must be a multiple of number of bands ($bands)"
+    @assert ishermitian(t[1:bands, 1:bands]) "t on-site matrix is not Hermitian"
+
+    for i in 1:bands
+        for j in 1:(num_sites*bands)
+            if isa(t, Matrix)
+                hopping[(i, j)] = t[i, j]
+                hopping[(j, i)] = conj(t[i, j])
             else
-                return error("Filling should be between 0 and 2.")
+                hopping[(1,j)] = t[j]
+                hopping[(j,1)] = conj(t[j])
             end
         end
     end
-end
-name(::OBC_Sim) = "OBC"
 
-# used to compute groundstates in µ iterations
-struct OBC_Sim2 <: Simulation
-    t::Vector{Float64}
-    u::Vector{Float64}
-    μ::Union{Float64, Nothing}    # Imposed chemical potential
-    svalue::Float64
-    bond_dim::Int64
-    period::Int64
-    kwargs
-    function OBC_Sim2(t, u, μ::Float64, svalue=2.0, bond_dim = 50, period = 0; kwargs...)
-        return new(t, u, μ, svalue, bond_dim, period, kwargs)
-    end
+    return hopping
 end
-name(::OBC_Sim2) = "OBC2"
 
 """
-    MBC_Sim(t::Matrix{Float64}, u::Matrix{Float64}, J::Matrix{Float64}, U13::Matrix{Float64}, svalue=2.0, bond_dim=50; kwargs...)
+    ModelParams{T<:AbstractFloat}
 
-Construct a parameter set for a 1D ``B``-band Hubbard model with the number of particles determined by a chemical potential.
+Represents the Hamiltonian parameters for a lattice or multi-orbital system,
+including hopping terms and two-body interactions.
 
-# Arguments
-- `t`: ``B\\times nB`` matrix in which element ``(i,j)`` is the hopping parameter from band ``i`` to band ``j``. The on-site, nearest neighbour, next-to-nearest neighbour... hopping matrices are concatenated horizontally. The diagonal terms of the on-site matrix determine the filling.
-- `u`: ``B\\times nB`` matrix in which element ``(i,j)`` is the Coulomb repulsion ``U_{ij}=U_{iijj}`` between band ``i`` and band ``j``. The on-site, nearest neighbour, next-to-nearest neighbour... matrices are concatenated horizontally.
-- `J`: ``B\\times nB`` matrix in which element ``(i,j)`` is the exchange ``J_{ij}=U_{ijji}=U_{ijij}`` between band ``i`` and band ``j``. The on-site, nearest neighbour, next-to-nearest neighbour... matrices are concatenated horizontally. The diagonal terms of the on-site matrix are ignored.
-- `U13`: ``B\\times B`` matrix in which element ``(i,j)`` is the parameter ``U_{ijjj}=U_{jijj}=U_{jjij}=U_{jjji}`` between band ``i`` and band ``j``. Only on-site. The diagonal terms of the on-site matrix are ignored. This argument is optional.
-- `svalue`: The Schmidt truncation value, used to truncate in the iDMRG2 algorithm for the computation of the groundstate.
-- `bond_dim`: The maximal bond dimension used to initialize the state.
+# Fields
+- `bands::Int64`  
+    Number of orbitals or bands per unit cell. Must be positive.
+- `t::Dict{NTuple{2, Int64}, T}`  
+    Hopping amplitudes between sites. Convention: `t[(i,i)] = μ_i` is the on-site potential,
+    `t[(i,j)]` for i ≠ j is the hopping amplitude from site i to j.
+- `U::Dict{NTuple{4, Int64}, T}`  
+    Two-body interaction tensor. Entries `U[(i,j,k,l)]` correspond to the operator
+    c⁺_i c⁺_j c_k c_l. Zero entries can be omitted from the dictionary.
+- `A::Dict{NTuple{6, Int64}, T}`  
+    Placeholder for three-body interactions (Not yet implemented).
 
-Spin-dependent calculations are not yet implemented.
+# Constructors
+1. `ModelParams{T}(bands::Int64, t::Dict{NTuple{2, Int64}, T}, U::Dict{NTuple{4,Int},T})`  
+   Standard constructor with explicit number of bands, hopping dictionary, and interaction dictionary.
 
-U13 inter-site, Uijkk, and Uijkl can be inserted using kwargs.
+2. `ModelParams(t::Vector{T}, U::Dict{NTuple{4,Int},T})`  
+   Single-band constructor using hopping vector and two-body interaction dictionary.
 
-The optional argument `init_state` can be used to provide an initial guess for the groundstate search.
+3. `ModelParams(t::Vector{T}, U::Vector{T})`  
+   Single-band constructor from hopping vector and a vector of on-site interactions.
+   Automatically converts vectors into the interaction dictionary.
 
-Use the optional argument `name` to assign a name to the model. 
-This is used to destinguish between different parameter sets: Wrong results could be loaded or overwritten if not used consistently!!!
+4. `ModelParams(t::Vector{T}, U::Vector{T}, exchange::Vector{T}, pair_hop::Vector{T}=exchange, bond_charge::Vector{T}=[0.0])`  
+   Constructs interactions including density-density (U), exchange, pair-hopping, and bond-charge terms.
+
+5. `ModelParams(t::Matrix{T}, U::Matrix{T})`  
+   Multi-band constructor from hopping matrix and two-body interaction matrix. Checks Hermiticity and correct dimensions.
+
+6. `ModelParams(t::Vector{T}, U::Vector{T}, exchange::Vector{T}, pair_hop::Vector{T}=exchange)`  
+   Multi-band constructor with vectors of interactions, converted into the internal dictionary.
+
+# Notes
+- The constructors automatically convert hopping and interaction data from arrays or vectors into the
+  internal `Dict` representation.
+- Hermiticity of on-site interaction matrices is asserted where applicable.
+- Interaction dictionaries are structured for use in constructing many-body Hamiltonians.
 """
-struct MBC_Sim <: Simulation
-    t::Matrix{Float64}                        #convention: number of bands = number of rows, BxB for on-site + Bx(B*range) matrix for IS
-    u::Matrix{Float64}                        #convention: BxB matrix for OS (with OB on diagonal) + Bx(B*range) matrix for IS
-    J::Matrix{Float64}                        #convention: BxB matrix for OS (with OB zeros) + Bx(B*range) matrix for IS
-    U13::Matrix{Float64}                      #Matrix with iiij, iiji... parameters. Same convention.
-    svalue::Float64
-    bond_dim::Int64
-    kwargs
-    function MBC_Sim(t::Matrix{Float64}, u::Matrix{Float64}, J::Matrix{Float64}, svalue=2.0, bond_dim = 50; kwargs...)
-        spin::Bool = get(kwargs, :spin, false)
-        if spin
-            error("Spin not implemented.")
-        end
-        Bands,_ = size(t)
-        return new(t, u, J, zeros(Bands,Bands), svalue, bond_dim, kwargs)
-    end
-    function MBC_Sim(t::Matrix{Float64}, u::Matrix{Float64}, J::Matrix{Float64}, U13::Matrix{Float64}, svalue=2.0, bond_dim = 50; kwargs...)
-        spin::Bool = get(kwargs, :spin, false)
-        if spin
-            error("Spin not implemented.")
-        end
-        return new(t, u, J, U13, svalue, bond_dim, kwargs)
+struct ModelParams{T<:AbstractFloat}
+    bands::Int64
+    t::Dict{NTuple{2, Int64}, T}          # t_ii=µ_i, t_ij hopping i→j
+    U::Dict{NTuple{4, Int64}, T}          # U_ijkl c⁺_i c⁺_j c_k c_l
+    # A::Dict{NTuple{6, Int64}, T}        # 3-body interaction
+
+    function ModelParams(bands::Int64, t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T}) where {T<:AbstractFloat}
+        @assert bands > 0 "Number of bands must be a positive integer"
+        new{T}(bands, t, U)
     end
 end
-name(::MBC_Sim) = "MBC"
+# Constructors
+function ModelParams(t::Union{Vector{T}, Matrix{T}}, U::Dict{NTuple{4,Int},T}) where {T<:AbstractFloat}
+    bands = isa(t, Matrix) ? size(t,1) : 1
+    return ModelParams(bands, hopping_matrix2dict(t), U)
+end
+function ModelParams(t::Vector{T}, U::Vector{T}) where {T<:AbstractFloat}
+    interaction = Dict{NTuple{4,Int},T}()
+    for (i, val) in enumerate(U)
+        addU!(interaction, (1,i,i,1), val)
+        addU!(interaction, (i,1,1,i), val)  # double counting: factor 1/2 added later
+    end
+    return ModelParams(1, hopping_matrix2dict(t), interaction)
+end
+function ModelParams(
+            t::Vector{T},
+            U::Vector{T},
+            exchange::Vector{T},
+            pair_hop::Vector{T}=exchange,
+            bond_charge::Vector{T}=[0.0]
+        ) where {T<:AbstractFloat}
+
+    max_range = maximum(length.((U, exchange, pair_hop, bond_charge)))
+    interaction = Dict{NTuple{4,Int},T}()
+
+    for i in 1:max_range
+        if i <= length(U)
+            addU!(interaction, (1,i,i,1), U[i])
+            addU!(interaction, (i,1,1,i), U[i])
+        end
+        if i <= length(exchange)
+            addU!(interaction, (1,i+1,1,i+1), exchange[i])
+        end
+        if i <= length(pair_hop)
+            addU!(interaction, (1,1,i+1,i+1), pair_hop[i])
+        end
+        if i <= length(bond_charge)
+            # correlated hopping has multiple symmetry-related terms
+            addU!(interaction, (1,1,1,i+1), bond_charge[i])
+            addU!(interaction, (1,1,i+1,1), bond_charge[i])
+            addU!(interaction, (1,i+1,i+1,i+1), bond_charge[i])
+            addU!(interaction, (i+1,1,i+1,i+1), bond_charge[i])
+        end
+    end
+
+    return ModelParams(1, hopping_matrix2dict(t), interaction)
+end
+function ModelParams(t::Matrix{T}, U::Matrix{T}) where {T<:AbstractFloat}
+    bands = size(t, 1)
+
+    # --- basic checks ---
+    @assert size(U, 1) == bands "First dimension of U ($(size(U,1))) must be equal to number of bands ($bands)"
+    @assert size(U, 2) % bands == 0 "Second dimension of U ($(size(U,2))) must be multiple of number of bands ($bands)"
+    @assert ishermitian(U[1:bands, 1:bands]) "U on-site matrix is not Hermitian"
+
+    interaction = Dict{NTuple{4,Int},T}()
+    for i in 1:bands
+        for j in 1:size(U,2)
+            addU!(interaction, (i,j,j,i), U[i,j])
+            j>bands && addU!(interaction, (j,i,i,j), U[i,j])
+        end
+    end
+
+    return ModelParams(bands, hopping_matrix2dict(t), interaction)
+end
+function ModelParams(
+            t::Matrix{T},
+            U::Matrix{T},
+            exchange::Matrix{T},
+            pair_hop::Matrix{T}=exchange,
+        ) where {T<:AbstractFloat}
+
+    bands = size(t, 1)
+
+    # --- basic checks ---
+    for operator in (U, exchange, pair_hop)
+        @assert size(operator, 1) == bands "First dimension ($(size(U,1))) must be equal to number of bands ($bands)"
+        @assert size(operator, 2) % bands == 0 "Second dimension ($(size(U,2))) must be multiple of number of bands ($bands)"
+        @assert ishermitian(operator[1:bands, 1:bands]) "on-site matrix is not Hermitian"
+    end
+
+    interaction = Dict{NTuple{4,Int}, T}()
+    max_range = maximum(size.((U, exchange, pair_hop), 2))
+    for i in 1:bands
+        for j in 1:max_range
+            if j <= length(U)
+                addU!(interaction, (i,j,j,i), U[i,j])
+                j>bands && addU!(interaction, (j,i,i,j), U[i,j])
+            end
+            if j <= length(exchange)
+                addU!(interaction, (i,j,i,j), exchange[i,j])
+            end
+            if j <= length(pair_hop)
+                addU!(interaction, (i,i,j,j), pair_hop[i,j])
+            end
+        end
+    end
+
+    return ModelParams(bands, hopping_matrix2dict(t), interaction)
+end
+
+######################
+# Calculation set up #
+######################
+
+"""
+    CalcConfig
+
+Holds all configuration information for a lattice calculation, including
+symmetries and model parameters.
+
+# Fields
+- `symmetries::SymmetryConfig`  
+    Contains particle and spin symmetries, unit cell width, and optional filling.
+
+- `model::ModelParams{Float64}`  
+    Contains the Hamiltonian parameters: number of bands, hopping amplitudes, and two-body interactions.
+"""
+struct CalcConfig
+    symmetries::SymmetryConfig
+    model::ModelParams{Float64}
+end
