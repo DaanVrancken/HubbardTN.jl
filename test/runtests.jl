@@ -1,7 +1,7 @@
 using HubbardTN
 
 using Test, Printf
-using MPSKit, KrylovKit
+using MPSKit, KrylovKit, TensorKit
 
 # check if user supplied args --group="..."
 pat = r"(?:--group=)(\w+)"
