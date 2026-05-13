@@ -1,7 +1,7 @@
 name = "HubbardTN"
 uuid = "31f8dd75-9f76-4da8-9aed-ce20a80dcd69"
-authors = ["Daan Vrancken", "Quentin Staelens"]
 version = "0.5.3"
+authors = ["Daan Vrancken", "Quentin Staelens"]
 
 [deps]
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
@@ -16,7 +16,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 [compat]
 JLD2 = "0.6"
 KrylovKit = "0.10"
-MPSKit = "0.13.0 - 0.13.10"
+MPSKit = "0.13.0 - 0.13.10, 0.13"
 MPSKitModels = "0.4"
 TensorKit = "0.16.5"
 TensorKitTensors = "0.2.3"
