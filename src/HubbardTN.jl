@@ -1,7 +1,7 @@
 module HubbardTN
 
 export hubbard_space, c_plusmin_up, c_plusmin_down, c_minplus_up, c_minplus_down, c_plusmin_updown, c_minplus_updown, c_plusmin_downup, c_minplus_downup, c_min_up, c_min_down, c_plus_up, c_plus_down
-export c_plusmin, c_minplus, number_up, number_down, number_e, number_pair, Sx, Sy, Sz
+export c_plusmin, c_minplus, number_up, number_down, number_e, number_pair, Sx, Sy, Sz, number_updown, number_downup
 export b_plus, b_min, number_b
 export create_pair_onesite, delete_pair_onesite
 export SymmetryConfig, HubbardParams, CalcConfig

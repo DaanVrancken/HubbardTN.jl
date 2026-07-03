@@ -289,6 +289,47 @@ function c_minplus_downup(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, 
 end
 
 """
+    number_updown(T, particle_symmetry, spin_symmetry)
+
+Onsite spin-flip density operator c†_{↑} c_{↓}.
+This maps |↓⟩ -> |↑⟩ on the same site.
+
+Only allowed when spin symmetry is Trivial.
+"""
+number_updown(P::Type{<:Sector}, S::Type{<:Sector}; kwargs...) = number_updown(ComplexF64, P, S; kwargs...)
+function number_updown(T::Type{<:Number}, ::Type{Trivial}, ::Type{Trivial}; kwargs...)
+    t = single_site_operator(T, Trivial, Trivial)
+    I = sectortype(t)
+    t[(I(1), dual(I(1)))][1, 2] = 1
+    return t
+end
+function number_updown(T::Type{<:Number}, ::Type{U1Irrep}, ::Type{Trivial}; filling::Rational{Int}=1//1)
+    t = single_site_operator(T, U1Irrep, Trivial; filling=filling)
+    P = numerator(filling)
+    Q = denominator(filling)
+    I = sectortype(t)
+    t[(I(1, Q-P), dual(I(1, Q-P)))][1, 2] = 1
+    return t
+end
+function number_updown(T::Type{<:Number}, ::Type{<:Sector}, ::Type{U1Irrep}; kwargs...)
+    throw(ArgumentError("`number_updown = c†_↑ c_↓` is not symmetric under `U1Irrep` spin symmetry"))
+end
+function number_updown(T::Type{<:Number}, ::Type{<:Sector}, ::Type{SU2Irrep}; kwargs...)
+    throw(ArgumentError("`number_updown = c†_↑ c_↓` is not symmetric under `SU2Irrep` spin symmetry"))
+end
+
+"""
+    number_downup(T, particle_symmetry, spin_symmetry)
+
+Onsite reverse spin-flip density operator c†_{↓} c_{↑}.
+This is the Hermitian conjugate of number_updown.
+"""
+number_downup(P::Type{<:Sector}, S::Type{<:Sector}; kwargs...) = number_downup(ComplexF64, P, S; kwargs...)
+function number_downup(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector}; kwargs...)
+    return copy(adjoint(number_updown(T, particle_symmetry, spin_symmetry; kwargs...)))
+end
+
+"""
     c_plusmin(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector})
 
 Return the two-body operator that creates a particle at the first site and annihilates a particle at the second.

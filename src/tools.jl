@@ -193,14 +193,37 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
 
     if bands == 1
         n   = number_e(ps, ss)
-        c0  = real(expectation_value(ψ, 1 => n))
+        nup = number_up(ps, ss)
+        ndn = number_down(ps, ss)
+        @assert n == nup + ndn "Number operator does not equal sum of spin-up and spin-down number operators"
+        c0  = real(expectation_value(ψ, 1 => nup))
+        c1  = real(expectation_value(ψ, 1 => ndn))
         c   = c_plusmin(ps, ss)
         c01 = real(expectation_value(ψ, (1,2) => c))
 
-        b01 = 2 * 4 * tz^2 * c01 / E
-        b0  = 2 * 4 * tz^2 * c0  / E
+        println("c0 = ", c0)
+        println("c1 = ", c1)
+        println("c01 = ", c01)
+        
+        b0  = 2 * 4 * ty * tz * c0  / E
+        b1  = 2 * 4 * ty * tz * c1  / E
+        b01 = 2 * 4 * ty * tz * c01 / E
 
-        return [b0, b01]
+        if ss == U1Irrep
+            return [b0, b1, b01]
+        end
+
+        c0_ud  = real(expectation_value(ψ, 1 => number_updown(ComplexF64, ps, ss)))
+        c01_ud  = real(expectation_value(ψ, (1,2) => c_plusmin_updown(ComplexF64, ps, ss)))
+
+        println("c0_ud = ", c0_ud)
+        println("c01_ud = ", c01_ud)         
+
+        b0_ud  = 2 * 4 * ty * tz * c0_ud  / E
+        b01_ud = 2 * 4 * ty * tz * c01_ud / E
+
+        return [b0, b1, b01, b0_ud, b01_ud]
+
     elseif bands == 2
         c00 = real(expectation_value(ψ, (1,3) => c_plusmin_up(ComplexF64, ps, ss)))
         c01 = real(expectation_value(ψ, (1,2) => c_plusmin_up(ComplexF64, ps, ss)))

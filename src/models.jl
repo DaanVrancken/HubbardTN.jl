@@ -109,6 +109,7 @@ multi-orbital system.
 
 # Constructors
 - `HubbardParams(bands, t::Dict, U::Dict)` — standard constructor specifying bands, hopping, and interactions.
+- `HubbardParams(bands, t::Dict, U::Dict, t_imp::Dict, U_imp::Dict)` — impurity constructor specifying bands, hopping, and interactions.
 - `HubbardParams(t::Vector, U::Vector)` — single-band convenience constructor from vectors.
 - `HubbardParams(t::Matrix, U::Matrix)` — multi-band constructor from matrices; automatically checks dimensions and Hermiticity.
 """
@@ -116,16 +117,28 @@ struct HubbardParams{T<:AbstractFloat}
     bands::Int64
     t::Dict{NTuple{2, Int64}, T}          # t_ii=µ_i, t_ij hopping i→j
     U::Dict{NTuple{4, Int64}, T}          # U_ijkl c⁺_i c⁺_j c_k c_l
+    t_imp::Dict{NTuple{2,Int},T}
+    U_imp::Dict{NTuple{4,Int},T}
 
-    function HubbardParams(bands::Int64, t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T}) where {T<:AbstractFloat}
+    function HubbardParams(bands::Int64, t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T},
+        t_imp::Dict{NTuple{2,Int},T}=copy(t), U_imp::Dict{NTuple{4,Int},T}=copy(U),) where {T<:AbstractFloat}
         bands > 0 || throw(ArgumentError("Number of bands must be a positive integer, got $bands."))
-        new{T}(bands, t, U)
+        new{T}(bands, t, U, t_imp, U_imp)
     end
 end
 # Constructors
 function HubbardParams(t::Union{Vector{T}, Matrix{T}}, U::Dict{NTuple{4,Int},T}) where {T<:AbstractFloat}
     bands = isa(t, Matrix) ? size(t,1) : 1
     return HubbardParams(bands, hopping_matrix2dict(t), U)
+end
+function HubbardParams(
+            t::Union{Vector{T}, Matrix{T}},
+            U::Dict{NTuple{4,Int},T},
+            t_imp::Union{Vector{T}, Matrix{T}},
+            U_imp::Dict{NTuple{4,Int},T},
+        ) where {T<:AbstractFloat}
+    bands = isa(t, Matrix) ? size(t,1) : 1
+    return HubbardParams(bands, hopping_matrix2dict(t), U, hopping_matrix2dict(t_imp), U_imp)
 end
 function HubbardParams(t::Vector{T}, U::Vector{T}) where {T<:AbstractFloat}
     interaction = Dict{NTuple{4,Int},T}()
