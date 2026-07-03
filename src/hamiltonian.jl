@@ -171,7 +171,9 @@ function build_ops(symm::SymmetryConfig, bands::Int64, max_b::Int64, nmodes::Int
     ops = (
         c⁺c      = c_plusmin(ps, ss; filling=fill),
         n_pair   = number_pair(ps, ss; filling=fill),
-        n        = number_e(ps, ss; filling=fill)
+        n        = number_e(ps, ss; filling=fill),
+        nup      = number_up(ps, ss; filling=fill),
+        ndn      = number_down(ps, ss; filling=fill)
     )
     if ss !== SU2Irrep
         ops = merge(ops, (Sz = Sz(ps, ss; filling=fill),))
@@ -179,6 +181,7 @@ function build_ops(symm::SymmetryConfig, bands::Int64, max_b::Int64, nmodes::Int
     if ss === Trivial
         ops = merge(ops, (Sx = Sx(ps, ss; filling=fill), Sy = Sy(ps, ss; filling=fill)))
         ops = merge(ops, (c⁺c_ud = c_plusmin_updown(ps, ss; filling=fill), c⁺c_du = c_plusmin_downup(ps, ss; filling=fill)))
+        ops = merge(ops, (n_ud = number_updown(ps, ss; filling=fill), n_du = number_downup(ps, ss; filling=fill)))
     end
     if ps === Trivial
         ops = merge(ops, (c⁺pair = create_pair_onesite(ps, ss; filling=fill), cpair = delete_pair_onesite(ps, ss; filling=fill)))
@@ -244,6 +247,86 @@ function hamiltonian(calc::CalcConfig{T}) where {T<:AbstractFloat}
                 indices => 0.5 * U_ijkl * operator
             end for ((i,j,k,l), U_ijkl) in U
         ])
+    end
+
+    H = InfiniteMPOHamiltonian(spaces, h...)
+
+    # --- Extra terms ---
+    for term in calc.terms
+        H += hamiltonian_term(term, ops, spaces, cell_width, bands, boson_modes)
+    end
+
+    return H
+end
+
+"""
+    hamiltonian(calc::CalcConfig)
+
+Constructs the many-body Hamiltonian for a system defined by configuration `calc`.
+
+# Notes
+- Lattice sites are represented using an `InfiniteChain` of length `cell_width * bands`.
+- The resulting MPO can be used directly for DMRG, VUMPS, or other tensor network calculations.
+"""
+function hamiltonian_impurity(calc::CalcConfig{T}) where {T<:AbstractFloat}
+    empty!(two_body_cache)
+    empty!(three_body_cache)
+
+    bands = calc.hubbard.bands
+    t = calc.hubbard.t
+    U = calc.hubbard.U
+    t_imp = calc.hubbard.t_imp
+    U_imp = calc.hubbard.U_imp
+
+    idx = findfirst(t -> t isa HolsteinTerm, calc.terms)
+    max_b = (idx === nothing ? 0 : calc.terms[idx].max_b)
+    w = (idx === nothing ? [] : calc.terms[idx].w)
+    boson_modes = Int(max_b>0) * length(w)
+    period = bands + boson_modes
+
+    ops, spaces = build_ops(calc.symmetries, bands, max_b, boson_modes)
+    cell_width = calc.symmetries.cell_width
+    imp_cell = div(cell_width, 2)-1
+
+    h::Vector{Pair{Tuple{Vararg{Int64}}, Any}} = [(1,) => 0*ops.n]
+
+    # --- Hopping ---
+    for cell in 0:(cell_width-1)
+        site(i) = i + cell*period + div(i-1, bands)*boson_modes
+
+        for key in union(keys(t), keys(t_imp))
+            i, j = key
+
+            # Does this hopping touch the impurity cell?
+            touches_imp = any(x -> mod(cell + div(x-1, bands), cell_width) == imp_cell, (i, j))
+            t_use = touches_imp ? get(t_imp, key, get(t, key, zero(T))) : get(t, key, zero(T))
+
+            if t_use != 0
+                if i != j
+                    push!(h, site.((i,j)) => -t_use*ops.c⁺c)
+                else
+                    push!(h, (site(i),) => -t_use*ops.n)
+                end
+            end
+        end
+    end
+
+    # --- 2-body Interaction ---
+    for cell in 0:(cell_width-1)
+        site(i) = i + cell*period + div(i-1, bands)*boson_modes
+
+        for key in union(keys(U), keys(U_imp))
+            i, j, k, l = key
+
+            # Does this interaction touch the impurity cell?
+            touches_imp = any(x -> mod(cell + div(x-1, bands), cell_width) == imp_cell, (i, j, k, l))
+            U_use = touches_imp ? get(U_imp, key, get(U, key, zero(T))) : get(U, key, zero(T))
+
+            if U_use != 0
+                operator, indices = two_body_int_cached(ops, site.((i,j,k,l)))
+                push!(h, indices => 0.5 * U_use * operator)
+            end
+        end
     end
 
     H = InfiniteMPOHamiltonian(spaces, h...)
@@ -373,9 +456,9 @@ function hamiltonian_term(
             cs, λs, err = inv_power_expsum(term.xi, K)
         end
 
-        cs = real.(cs)
-        cs ./= sum(cs)
         λs = real.(λs)
+        cs = real.(cs .* λs)
+        cs ./= sum(cs)
 
         @info "Created exponential fit for non-local Holstein coupling" K=K err=err
         println("cs = ", cs)
@@ -398,13 +481,13 @@ function hamiltonian_term(
                 end
             else # Nonlocal Holstein coupling in terms of exponentials
                 if ce == cp
-                    println(e,p,g[be,m])
+                    println(e,p," ",g[be,m])
                     for (c, λ) in zip(cs, λs)
                         H_ep += exponential_mpo(spaces, (e, p), c * O_ep, λ^2)
                     end
 
                 elseif abs(ce - cp) == 1
-                    println(e,p,g[be,m])
+                    println(e,p," ",g[be,m])
                     for (c, λ) in zip(cs, λs)
                         H_ep += exponential_mpo(spaces, (e, p), c * λ * O_ep, λ^2)
                     end
@@ -434,7 +517,11 @@ function hamiltonian_term(
 
     if bands == 1
         a0, a01 = term.alpha
-        b0, b01 = term.beta
+        if hasproperty(ops, :c⁺c_ud)
+            b0, b1, b01, b0_ud, b01_ud = term.beta
+        else
+            b0, b1, b01 = term.beta
+        end
     elseif bands == 2
         a0, a1, a00, a01, a10, a11 = term.alpha
         if hasproperty(ops, :c⁺c_ud)
@@ -465,6 +552,14 @@ function hamiltonian_term(
             ])
         end
         h = append!(h, [
+                (i,) => b0*ops.nup
+                for i in electron_sites
+        ])
+        h = append!(h, [
+                (i,) => b1*ops.ndn
+                for i in electron_sites
+        ])
+        h = append!(h, [
             (electron_sites[n+1], electron_sites[n]) => b01*ops.c⁺c
             for n in 1:(length(electron_sites)-1)
         ])
@@ -472,6 +567,22 @@ function hamiltonian_term(
             (electron_sites[n], electron_sites[n+1]) => b01*ops.c⁺c
             for n in 1:(length(electron_sites)-1)
         ])
+
+        if hasproperty(ops, :c⁺c_ud)
+            h = append!(h, [
+                (i,) => b0_ud*ops.n_ud + b0_ud*ops.n_du
+                for i in electron_sites
+            ])
+            h = append!(h, [
+                (electron_sites[n+1], electron_sites[n]) => b01_ud*ops.c⁺c_ud + b01_ud*ops.c⁺c_du
+                for n in 1:(length(electron_sites)-1)
+            ])
+            h = append!(h, [
+                (electron_sites[n], electron_sites[n+1]) => b01_ud*ops.c⁺c_ud + b01_ud*ops.c⁺c_du
+                for n in 1:(length(electron_sites)-1)
+            ])
+        end
+
         return InfiniteMPOHamiltonian(spaces, h...)
     end
 
