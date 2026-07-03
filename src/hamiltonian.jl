@@ -171,9 +171,7 @@ function build_ops(symm::SymmetryConfig, bands::Int64, max_b::Int64, nmodes::Int
     ops = (
         c⁺c      = c_plusmin(ps, ss; filling=fill),
         n_pair   = number_pair(ps, ss; filling=fill),
-        n        = number_e(ps, ss; filling=fill),
-        nup      = number_up(ps, ss; filling=fill),
-        ndn      = number_down(ps, ss; filling=fill)
+        n        = number_e(ps, ss; filling=fill)
     )
     if ss !== SU2Irrep
         ops = merge(ops, (Sz = Sz(ps, ss; filling=fill),))
@@ -182,6 +180,7 @@ function build_ops(symm::SymmetryConfig, bands::Int64, max_b::Int64, nmodes::Int
         ops = merge(ops, (Sx = Sx(ps, ss; filling=fill), Sy = Sy(ps, ss; filling=fill)))
         ops = merge(ops, (c⁺c_ud = c_plusmin_updown(ps, ss; filling=fill), c⁺c_du = c_plusmin_downup(ps, ss; filling=fill)))
         ops = merge(ops, (n_ud = number_updown(ps, ss; filling=fill), n_du = number_downup(ps, ss; filling=fill)))
+        ops = merge(ops, (nup = number_up(ps, ss; filling=fill), ndn = number_down(ps, ss; filling=fill)))
     end
     if ps === Trivial
         ops = merge(ops, (c⁺pair = create_pair_onesite(ps, ss; filling=fill), cpair = delete_pair_onesite(ps, ss; filling=fill)))
