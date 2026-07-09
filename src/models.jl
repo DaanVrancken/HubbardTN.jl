@@ -435,7 +435,7 @@ struct CalcConfig{
             d = denominator(symmetries.filling)
             (n > 0 && d > 0) || throw(ArgumentError("Filling numerator and denominator must be positive integers, got $n//$d."))
             necessary_width = d * (mod(n, 2) + 1)
-            symmetries.cell_width % necessary_width == 0 || throw(ArgumentError("Cell width $(symmetries.cell_width) must be a multiple of $necessary_width to accommodate the specified filling ($n / $d)."))
+            symmetries.cell_width % necessary_width == 0 || throw(ArgumentError("cell_width ($(symmetries.cell_width)) must be a multiple of $necessary_width to accommodate the specified filling ($n / $d)."))
         end
 
         for term in terms
