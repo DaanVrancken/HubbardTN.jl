@@ -429,6 +429,15 @@ struct CalcConfig{
         dup === nothing || throw(ArgumentError("Duplicate Hamiltonian term detected: $dup."))
 
         bands = hubbard.bands
+
+        if symmetries.filling !== nothing
+            n = numerator( symmetries.filling)
+            d = denominator(symmetries.filling)
+            (n > 0 && d > 0) || throw(ArgumentError("Filling numerator and denominator must be positive integers, got $n//$d."))
+            necessary_width = d * (mod(n, 2) + 1)
+            symmetries.cell_width % necessary_width == 0 || throw(ArgumentError("Cell width $(symmetries.cell_width) must be a multiple of $necessary_width to accommodate the specified filling ($n / $d)."))
+        end
+
         for term in terms
             if :bands in fieldnames(typeof(term))
                 term.bands == bands || throw(ArgumentError("Number of bands in HubbardParams ($bands) does not match number of bands in $(typeof(term)) ($(term.bands))."))
@@ -439,19 +448,8 @@ struct CalcConfig{
                 expected_sites = bands * symmetries.cell_width
                 size(term.J, 1) == expected_sites || throw(ArgumentError("Number of electron sites in cell ($expected_sites) does not match first dimension of SpinMeanField.J ($(size(term.J,1)))."))
             end
-            if symmetries.filling !== nothing
-                oldf = symmetries.filling
-                n = numerator(oldf)
-                d = denominator(oldf)
-                (n > 0 && d > 0) || throw(ArgumentError("Filling numerator and denominator must be positive integers, got $n//$d."))
-                necessary_width = d * (mod(n, 2) + 1)
-                symmetries.cell_width % necessary_width == 0 || throw(ArgumentError("Cell width $(symmetries.cell_width) must be a multiple of $necessary_width to accommodate the specified filling ($n / $d)."))
-                
-                if term isa HolsteinTerm
-                    newf = oldf * bands // (bands + length(term.w))
-                else
-                    newf = oldf
-                end
+            if symmetries.filling !== nothing && term isa HolsteinTerm
+                newf = symmetries.filling * bands // (bands + length(term.w))
                 
                 symmetries = SymmetryConfig(
                     symmetries.particle_symmetry,
