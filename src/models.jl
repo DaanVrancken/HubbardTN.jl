@@ -119,6 +119,8 @@ struct HubbardParams{T<:AbstractFloat}
 
     function HubbardParams(bands::Int64, t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T}) where {T<:AbstractFloat}
         bands > 0 || throw(ArgumentError("Number of bands must be a positive integer, got $bands."))
+        all(k -> all(>(0), k), keys(t)) || throw(ArgumentError("t has negative indices."))
+        all(k -> all(>(0), k), keys(U)) || throw(ArgumentError("U has negative indices."))
         new{T}(bands, t, U)
     end
 end
@@ -199,6 +201,10 @@ Represents three-body interactions in the Hamiltonian.
 struct ThreeBodyTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
     bands::Int64
     V::Dict{NTuple{6,Int}, T}
+    function ThreeBodyTerm(bands::Int64, V::Dict{NTuple{6,Int}, T})
+        all(k -> all(>(0), k), keys(V)) || throw(ArgumentError("V has negative indices."))
+        new{T}(bands, V)
+    end
 end
 # Constructors
 function ThreeBodyTerm(V::Vector{T}) where {T<:AbstractFloat}
@@ -267,7 +273,8 @@ Mean-field coupling term representing inter-chain spin interactions.
 
 # Fields
 - `J::Matrix{T}`: Inter-chain coupling matrix of size NxN, where J[i,j] couples site i
-  in the current chain to site j in neighboring chains.
+  in the current chain to site j in neighboring chains. Multiply with the coordination number
+  to account for multiple chains.
 - `spins::Union{Vector{T}, Matrix{T}}`: Expected spin expectation values from neighboring chains.
     - **Collinear**: A `Vector{T}` of length N containing z-components.
     - **Noncollinear**: A `Matrix{T}` of size Nx3 containing (x, y, z) components.
@@ -292,12 +299,77 @@ struct SpinMeanField{T<:AbstractFloat} <: AbstractHamiltonianTerm
     end
 end
 
+abstract type AbstractInterchainMF <: AbstractHamiltonianTerm end
+
+"""
+    ChargeGapMF{T<:AbstractFloat} <: AbstractInterchainMF
+
+Terms used in a perturbative treatment based on the charge gap, parametrizing
+effective interchain/interladder processes.
+
+# Fields
+- `t_inter::Dict{NTuple{2, Int64}, T}`
+    Inter-chain hopping parameters. `t_inter[(i,j)]` for `i ≠ j` is the hopping amplitude 
+    from site i on chain 0 to site j on the neigboring chain. Has to be scaled with `√(z/Δ)`,
+    where `z` is the coordination number and `Δ` the charge/band gap.
+- `beta_uu::Matrix{T}`
+    Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↑⟩`.
+- `beta_ud::Matrix{T}`
+    Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↓⟩`.
+- `beta_du::Matrix{T}`
+    Matrix of self-consistent parameters `⟨cₖ↓⁺cₗ↑⟩`.
+- `beta_dd::Matrix{T}`
+    Matrix of self-consistent parameters `⟨cₖ↓⁺cₗ↓⟩`.
+"""
+struct ChargeGapMF{T<:AbstractFloat} <: AbstractInterchainMF 
+    t_inter::Dict{NTuple{2, Int64}, T}
+    beta_uu::Matrix{T}
+    beta_ud::Matrix{T}
+    beta_du::Matrix{T}
+    beta_dd::Matrix{T}
+    function(   t_inter::Dict{NTuple{2, Int64}, T},
+                beta_uu::Matrix{T}, beta_ud::Matrix{T},
+                beta_du::Matrix{T}, beta_dd::Matrix{T}
+            ) where {T<:AbstractFloat}
+        all(k -> all(>(0), k), keys(t)) || throw(ArgumentError("t_inter has negative indices."))
+        (n, m) = size(beta_uu)
+        n, m = size(beta_uu)
+        n == m || throw(ArgumentError("beta_uu must be square, got size $(size(beta_uu))."))
+
+        sz = size(beta_uu)
+        size(beta_ud) == sz && size(beta_du) == sz && size(beta_dd) == sz || 
+            throw(ArgumentError("All beta matrices must have matching dimensions ($sz)."))
+
+        return new{T}(t_inter, beta_uu, beta_ud, beta_du, beta_dd)
+    end
+end
+"""
+    PairGapMF{T<:AbstractFloat} <: AbstractHamiltonianTerm
+
+Terms used in a perturbative treatment based on the pair gap, parameterizing 
+effective interchain/interladder processes. 
+Ref: Bollmark et al., Phys. Rev. X 13, 011039 (2023)
+
+# Fields
+- `alpha::Vector{T}`
+    Self-consistent parameters associated with pair-tunneling.
+- `beta::Vector{T}`
+    Self-consistent parameters associated with exchange.
+# Notes
+- `alpha` and `beta` are not fixed couplings: they should be iterated to convergence together
+  with the ground state (or other target state) to satisfy the chosen self-consistency condition.
+"""
+struct PairGapMF{T<:AbstractFloat} <: AbstractInterchainMF 
+    alpha::Vector{T}
+    beta::Vector{T}
+end
+
 """
     HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
 
 Represents Holstein-type electron–phonon coupling terms `w b⁺ᵢ bᵢ` and
 `gₐ(nᵢₐ-<n>)(b⁺ⱼ + bⱼ)` in the Hamiltonian.  The coupling may be local
-(`i=j`) or exponentially decaying with distance `exp(-rᵢⱼ/ξ)`.  Couplings
+(`i=j`) or decaying with distance `rᵢⱼ^(-ξ)`.  Couplings
 smaller than `threshold` are neglected.
 
 # Fields
@@ -310,9 +382,9 @@ smaller than `threshold` are neglected.
 - `mean_ne::T`  
     Mean number of electrons per site in the bare Hubbard model, used to
     normal-order the density operator.
-- `xi::T`  
-    Exponential decay length for non-local coupling (`0` means strictly local).
-- `threshold::T`  
+- `xi::T=Inf`  
+    Power law decay length for non-local coupling (`Inf` means strictly local).
+- `threshold::T=0`  
     Minimum coupling magnitude retained in the Hamiltonian; smaller values are
     dropped for efficiency.
 
@@ -321,7 +393,7 @@ smaller than `threshold` are neglected.
 
 All arguments are positional except `xi` and `threshold`, which are keyword
 arguments with default `0`.  Pass `xi > 0` together with a positive
-`threshold` to enable exponentially decaying non-local coupling.
+`threshold` to enable decaying non-local coupling.
 """
 struct HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
     w::Vector{T}
@@ -350,37 +422,22 @@ struct HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
     end
 end
 
-"""
-    Bollmark{T<:AbstractFloat} <: AbstractHamiltonianTerm
-
-Bollmark term used in a perturbative treatment, parameterizing effective interchain/interladder
-processes. Ref: Bollmark et al., Phys. Rev. X 13, 011039 (2023)
-
-# Fields
-- `alpha::Vector{T}`
-    Self-consistent parameters (e.g. mean-field amplitudes) associated with the first Bollmark term.
-- `beta::Vector{T}`
-    Self-consistent parameters (e.g. mean-field amplitudes) associated with the second Bollmark term.
-# Notes
-- `alpha` and `beta` are not fixed couplings: they should be iterated to convergence together
-  with the ground state (or other target state) to satisfy the chosen self-consistency condition.
-"""
-struct Bollmark{T<:AbstractFloat} <: AbstractHamiltonianTerm
-    alpha::Vector{T}
-    beta::Vector{T}
-end
-
 
 ######################
 # Calculation set up #
 ######################
 
 # Check for duplicate Hamiltonian terms
+function get_family(::Type{T}) where {T<:AbstractHamiltonianTerm}
+    S = supertype(T)
+    (S === AbstractHamiltonianTerm || S === Any) ? T : get_family(S)
+end
 function find_duplicate(terms::Tuple)
     for (i, t) in enumerate(terms)
-        T = typeof(t)
+        T = get_family(typeof(t))
         for s in terms[i+1:end]
-            typeof(s) === T && return T
+            T2 = get_family(typeof(s))
+            T2 === T && return T
         end
     end
     return nothing

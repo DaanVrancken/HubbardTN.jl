@@ -9,7 +9,7 @@ filling = 1//1
 
 symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width, filling)
 
-t = [0.0, 1.0]   # [chemical_potential, nn_hopping, nnn_hopping, ...]
+t = [0.0, 1.0]     # [chemical_potential, nn_hopping, nnn_hopping, ...]
 U = [-10.0]        # [on-site interaction, nn_interaction, ...]
 svalue = 2.5
 
@@ -38,7 +38,7 @@ particle_symmetry = Trivial
 symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width)
 
 # Step 2: Set up model parameters
-t = [-5.0, 1.0]   # [chemical_potential, nn_hopping, nnn_hopping, ...]
+t = [-5.0, 1.0]    # [chemical_potential, nn_hopping, nnn_hopping, ...]
 U = [-10.0]        # [on-site interaction, nn_interaction, ...]
 alpha = [0.0,0.0]
 beta = [0.0,0.0]
@@ -51,7 +51,7 @@ E_list     = Float64[]
 for i in 1:5
     global alpha, beta
     println("Step $i: alpha = $alpha, beta = $beta")
-    calc = CalcConfig(symm, model, Bollmark(alpha, beta))
+    calc = CalcConfig(symm, model, PairGapMF(alpha, beta))
 
     # Step 3: Compute the ground state
     gs = compute_groundstate(calc; svalue=svalue)

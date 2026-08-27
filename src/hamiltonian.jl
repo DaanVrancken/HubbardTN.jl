@@ -292,7 +292,6 @@ function hamiltonian_term(
                     boson_modes::Int64
                 )
     B = term.B
-    period = bands + boson_modes
 
     electron_sites = [i + div(i-1, bands)*boson_modes for i in 1:(cell_width*bands)]
 
@@ -337,87 +336,20 @@ function hamiltonian_term(
     end
     return InfiniteMPOHamiltonian(spaces, h...)
 end
-# Holstein coupling term
+# Charge gap mean field term
 function hamiltonian_term(
-                    term::HolsteinTerm, 
+                    term::ChargeGapMF, 
                     ops,
-                    spaces, 
+                    spaces,
                     cell_width::Int64,
                     bands::Int64,
                     boson_modes::Int64
                 )
-    w = term.w
-    g = term.g
-    mean_ne = term.mean_ne
-    xi = term.xi
-
-    period = bands + boson_modes
-
-    electron_sites = [i + div(i-1, bands)*boson_modes for i in 1:(cell_width*bands)]
-    electron_ind(i) = mod1(i, period)
-    phonon_sites = [i + bands + div(i-1, boson_modes)*bands for i in 1:(cell_width*boson_modes)]
-    phonon_ind(i) = mod1(i, period) - bands
-    cell(i) = div(i-1, period)
-
-    H_ph = InfiniteMPOHamiltonian(spaces, [(i,) => w[phonon_ind(i)] * ops.nb for i in phonon_sites]...)
-
-    H_ep = 0 * H_ph
-
-    # Precompute non-local exponential fit for a power-law
-    if xi != Inf
-        K = 1
-        cs, λs, err = inv_power_expsum(xi, K)
-
-        while err ≥ term.threshold
-            K += 1
-            cs, λs, err = inv_power_expsum(xi, K)
-        end
-
-        cs = real.(cs)
-        cs ./= sum(cs)
-        λs = real.(λs)
-
-        @info "Created exponential fit for non-local Holstein coupling" K=K err=err
-        println("cs = ", cs)
-        println("λs = ", λs)
-    end
-
-    for e in electron_sites
-        ce = cell(e)
-        be = electron_ind(e)
-        for p in phonon_sites
-            cp = cell(p)
-            m = phonon_ind(p)
-            O_e = g[be, m] * (ops.n - mean_ne * id(domain(ops.n)))
-            O_p = ops.bmin + ops.bplus
-            O_ep = O_e ⊗ O_p
-
-            if xi == Inf # Pure local Holstein coupling
-                if ce == cp
-                    H_ep += InfiniteMPOHamiltonian(spaces, (e, p) => O_ep)
-                end
-            else # Nonlocal Holstein coupling in terms of exponentials
-                if ce == cp
-                    println(e,p,g[be,m])
-                    for (c, λ) in zip(cs, λs)
-                        H_ep += exponential_mpo(spaces, (e, p), c * O_ep, λ^2)
-                    end
-
-                elseif abs(ce - cp) == 1
-                    println(e,p,g[be,m])
-                    for (c, λ) in zip(cs, λs)
-                        H_ep += exponential_mpo(spaces, (e, p), c * λ * O_ep, λ^2)
-                    end
-                end
-            end
-        end
-    end
-
-    return H_ph + H_ep
+    error("Not yet implemented.")
 end
-# Bollmark term
+# Pair gap mean field term
 function hamiltonian_term(
-                    term::Bollmark, 
+                    term::PairGapMF, 
                     ops,
                     spaces,
                     cell_width::Int64,
@@ -443,7 +375,7 @@ function hamiltonian_term(
             b00, b01, b10, b11 = term.beta
         end
     else
-        error("Bollmark term: only 1-band and 2-band models are implemented, got bands = $bands.")
+        error("PairGapMF term: only 1-band and 2-band models are implemented, got bands = $bands.")
     end
     
     h = Any[]
@@ -510,4 +442,80 @@ function hamiltonian_term(
 
         return InfiniteMPOHamiltonian(spaces, h...)
     end
+end
+# Holstein coupling term
+function hamiltonian_term(
+                    term::HolsteinTerm, 
+                    ops,
+                    spaces, 
+                    cell_width::Int64,
+                    bands::Int64,
+                    boson_modes::Int64
+                )
+    w = term.w
+    g = term.g
+    mean_ne = term.mean_ne
+    xi = term.xi
+
+    period = bands + boson_modes
+
+    electron_sites = [i + div(i-1, bands)*boson_modes for i in 1:(cell_width*bands)]
+    electron_ind(i) = mod1(i, period)
+    phonon_sites = [i + bands + div(i-1, boson_modes)*bands for i in 1:(cell_width*boson_modes)]
+    phonon_ind(i) = mod1(i, period) - bands
+    cell(i) = div(i-1, period)
+
+    H_ph = InfiniteMPOHamiltonian(spaces, [(i,) => w[phonon_ind(i)] * ops.nb for i in phonon_sites]...)
+
+    H_ep = 0 * H_ph
+
+    # Precompute non-local exponential fit for a power-law
+    if xi != Inf
+        K = 1
+        cs, λs, err = inv_power_expsum(xi, K)
+
+        while err ≥ term.threshold
+            K += 1
+            cs, λs, err = inv_power_expsum(xi, K)
+        end
+
+        cs = real.(cs)
+        cs ./= sum(cs)
+        λs = real.(λs)
+
+        @info "Created exponential fit for non-local Holstein coupling: K=$K err=$err"
+    end
+
+    for e in electron_sites
+        ce = cell(e)
+        be = electron_ind(e)
+        for p in phonon_sites
+            cp = cell(p)
+            m = phonon_ind(p)
+            O_e = g[be, m] * (ops.n - mean_ne * id(domain(ops.n)))
+            O_p = ops.bmin + ops.bplus
+            O_ep = O_e ⊗ O_p
+
+            if xi == Inf # Pure local Holstein coupling
+                if ce == cp
+                    H_ep += InfiniteMPOHamiltonian(spaces, (e, p) => O_ep)
+                end
+            else # Nonlocal Holstein coupling in terms of exponentials
+                if ce == cp
+                    println(e,p,g[be,m])
+                    for (c, λ) in zip(cs, λs)
+                        H_ep += exponential_mpo(spaces, (e, p), c * O_ep, λ^2)
+                    end
+
+                elseif abs(ce - cp) == 1
+                    println(e,p,g[be,m])
+                    for (c, λ) in zip(cs, λs)
+                        H_ep += exponential_mpo(spaces, (e, p), c * λ * O_ep, λ^2)
+                    end
+                end
+            end
+        end
+    end
+
+    return H_ph + H_ep
 end
