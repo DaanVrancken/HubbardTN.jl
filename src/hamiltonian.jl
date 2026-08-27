@@ -364,13 +364,13 @@ function hamiltonian_term(
     H_ep = 0 * H_ph
 
     # Precompute non-local exponential fit for a power-law
-    if term.xi != Inf
+    if xi != Inf
         K = 1
-        cs, λs, err = inv_power_expsum(term.xi, K)
+        cs, λs, err = inv_power_expsum(xi, K)
 
         while err ≥ term.threshold
             K += 1
-            cs, λs, err = inv_power_expsum(term.xi, K)
+            cs, λs, err = inv_power_expsum(xi, K)
         end
 
         cs = real.(cs)
@@ -392,7 +392,7 @@ function hamiltonian_term(
             O_p = ops.bmin + ops.bplus
             O_ep = O_e ⊗ O_p
 
-            if term.xi == Inf # Pure local Holstein coupling
+            if xi == Inf # Pure local Holstein coupling
                 if ce == cp
                     H_ep += InfiniteMPOHamiltonian(spaces, (e, p) => O_ep)
                 end
