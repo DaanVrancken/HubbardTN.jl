@@ -320,6 +320,10 @@ effective interchain/interladder processes.
     Matrix of self-consistent parameters `⟨cₖ↓⁺cₗ↑⟩`.
 - `beta_dd::Matrix{T}`
     Matrix of self-consistent parameters `⟨cₖ↓⁺cₗ↓⟩`.
+
+# Notes
+- The `beta` matrices are not fixed couplings: they should be iterated to convergence together
+  with the ground state (or other target state) to satisfy the chosen self-consistency condition.
 """
 struct ChargeGapMF{T<:AbstractFloat} <: AbstractInterchainMF 
     t_inter::Dict{NTuple{2, Int64}, T}
@@ -368,8 +372,8 @@ end
     HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
 
 Represents Holstein-type electron–phonon coupling terms `w b⁺ᵢ bᵢ` and
-`gₐ(nᵢₐ-<n>)(b⁺ⱼ + bⱼ)` in the Hamiltonian.  The coupling may be local
-(`i=j`) or decaying with distance `rᵢⱼ^(-ξ)`.  Couplings
+`gₐ(nᵢₐ-<n>)(b⁺ⱼ + bⱼ)` in the Hamiltonian. The coupling may be local
+(`i=j`) or decaying with distance `rᵢⱼ^(-ξ)`. Couplings
 smaller than `threshold` are neglected.
 
 # Fields

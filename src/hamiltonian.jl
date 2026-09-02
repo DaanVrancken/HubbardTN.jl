@@ -20,6 +20,7 @@ end
 # Maps indices to actual lattice sites based on pattern key
 function compute_sites(indices::NTuple{N,Int}, key::Symbol) where {N}
     letters = collect(string(key))
+    @assert length(indices) == length(letters) "Number of indices must match number of characters in key."
     unique_letters = unique(letters)
 
     selected_indices = [indices[findfirst(==(letter), letters)] for letter in unique_letters]
@@ -150,7 +151,7 @@ function three_body_int_cached(ops, (i,j,k,l,m,n)::NTuple{6,Int})
         operator = three_body_int(ops, Val(key))
         three_body_cache[key] = operator
     end
-    sites = compute_sites((i,j,k,l), key)
+    sites = compute_sites((i,j,k,l,m,n), key)
 
     return operator, sites
 end
@@ -179,6 +180,7 @@ function build_ops(symm::SymmetryConfig, bands::Int64, max_b::Int64, nmodes::Int
     if ss === Trivial
         ops = merge(ops, (Sx = Sx(ps, ss; filling=fill), Sy = Sy(ps, ss; filling=fill)))
         ops = merge(ops, (c⁺c_ud = c_plusmin_updown(ps, ss; filling=fill), c⁺c_du = c_plusmin_downup(ps, ss; filling=fill)))
+        ops = merge(ops, (c⁺c_uu = c_plusmin_up(ps, ss; filling=fill), c⁺c_dd = c_plusmin_down(ps, ss; filling=fill)))
     end
     if ps === Trivial
         ops = merge(ops, (c⁺pair = create_pair_onesite(ps, ss; filling=fill), cpair = delete_pair_onesite(ps, ss; filling=fill)))
@@ -346,6 +348,9 @@ function hamiltonian_term(
                     boson_modes::Int64
                 )
     error("Not yet implemented.")
+
+    electron_sites = [i + div(i-1, bands)*boson_modes for i in 1:(cell_width*bands)]
+    # Need spin-dependent and spin-changing hopping operators
 end
 # Pair gap mean field term
 function hamiltonian_term(
