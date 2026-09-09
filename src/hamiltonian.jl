@@ -347,10 +347,31 @@ function hamiltonian_term(
                     bands::Int64,
                     boson_modes::Int64
                 )
-    error("Not yet implemented.")
+    hasproperty(ops, :c⁺c_uu) || throw(ArgumentError("ChargeGapMF requires Trivial spin symmetry."))
 
-    electron_sites = [i + div(i-1, bands)*boson_modes for i in 1:(cell_width*bands)]
-    # Need spin-dependent and spin-changing hopping operators
+    electron_site(i) = 1 + fld(i - 1, bands) * (bands + boson_modes) + mod(i - 1, bands)
+    beta_index(i)    = mod1(i, bands*cell_width)
+
+    t_inter = term.t_inter
+    range   = term.range
+
+    h = Any[]
+    for cell in 0:(cell_width-1), ((i, j), t_ij) in t_inter, ((k, l), t_kl) in t_inter, r in -range*bands:bands:range*bands
+
+        (abs(i - k - r) <= range && abs(j - l - r) <= range) || continue
+        
+        coefficient = 2 * t_ij * t_kl
+        sites   = (electron_site(i + cell*bands), electron_site(k + r + cell*bands))
+        idx = (beta_index(j + cell*bands), beta_index(l + r + cell*bands))
+        append!(h, [
+            sites => idx,#coefficient * term.beta_uu[idx...] * ops.c⁺c_uu,
+            sites => idx,#coefficient * term.beta_ud[idx...] * ops.c⁺c_ud,
+            sites => idx,#coefficient * term.beta_du[idx...] * ops.c⁺c_du,
+            sites => idx,#coefficient * term.beta_dd[idx...] * ops.c⁺c_dd
+        ])
+    end 
+
+    return InfiniteMPOHamiltonian(spaces, h...)
 end
 # Pair gap mean field term
 function hamiltonian_term(
