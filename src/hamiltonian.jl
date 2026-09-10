@@ -54,9 +54,6 @@ Constructs the many-body Hamiltonian for a system defined by configuration `calc
 - The resulting MPO can be used directly for DMRG, VUMPS, or other tensor network calculations.
 """
 function hamiltonian(calc::CalcConfig{T}) where {T<:AbstractFloat}
-    empty!(two_body_cache)
-    empty!(three_body_cache)
-
     bands = calc.hubbard.bands
     t = calc.hubbard.t
     U = calc.hubbard.U
@@ -93,6 +90,11 @@ function hamiltonian(calc::CalcConfig{T}) where {T<:AbstractFloat}
 
     return H
 end
+
+
+###########################
+# Extra Hamiltonian terms #
+###########################
 
 # Three-body interaction term
 function hamiltonian_term(
