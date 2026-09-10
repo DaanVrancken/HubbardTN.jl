@@ -44,7 +44,7 @@ struct SymmetryConfig
             throw(ArgumentError("Filling can only be specified when particle symmetry is U1Irrep, but got $(particle_symmetry)."))
         end
 
-        new(particle_symmetry, spin_symmetry, cell_width, filling)
+        return new(particle_symmetry, spin_symmetry, cell_width, filling)
     end
 end
 
@@ -90,6 +90,24 @@ function addU!(U::Dict{NTuple{4,Int},T}, key::NTuple{4,Int}, val::T) where {T}
         U[(l,k,j,i)] = conj(val)          # Hermitian conjugate term
     end
 end
+# Check Hermiticity of parameter dictionary
+function check_hermitian_dict(d::Dict{NTuple{X, Int}, T}; atol::Real=1e-8, rtol::Real=1e-5) where {X, T}
+    for (k, val) in d
+        k_rev = reverse(k)
+        
+        # Check if the conjugate/inverted key exists
+        if !haskey(d, k_rev)
+            return false, k_rev
+        end
+        
+        # Check if values match within tolerance
+        val_rev = d[k_rev]
+        if !isapprox(val, val_rev; atol=atol, rtol=rtol)
+            return false, k_rev
+        end
+    end
+    return true, nothing
+end
 
 """
     HubbardParams{T<:AbstractFloat}
@@ -119,7 +137,13 @@ struct HubbardParams{T<:AbstractFloat}
 
     function HubbardParams(bands::Int64, t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T}) where {T<:AbstractFloat}
         bands > 0 || throw(ArgumentError("Number of bands must be a positive integer, got $bands."))
-        new{T}(bands, t, U)
+        all(k -> all(>(0), k), keys(t)) || throw(ArgumentError("t has negative indices."))
+        all(k -> all(>(0), k), keys(U)) || throw(ArgumentError("U has negative indices."))
+        t_hermitian, key_t = check_hermitian_dict(t)
+        t_hermitian || throw(ArgumentError("t is not Hermitian. Missing or inconsistent conjugate for key $(key_t)."))
+        U_hermitian, key_U = check_hermitian_dict(U) 
+        U_hermitian || throw(ArgumentError("U is not Hermitian. Missing or inconsistent conjugate for key $(key_U)."))
+        return new{T}(bands, t, U)
     end
 end
 # Constructors
@@ -162,7 +186,7 @@ end
 abstract type AbstractHamiltonianTerm end
 
 # Add 3-body interaction term and its Hermitian conjugate
-function addV!(V::Dict{NTuple{6,Int},T}, key::NTuple{6,Int}, val::T) where {T}
+function addV!(V::Dict{NTuple{6,Int},T}, key::NTuple{6,Int}, val::T) where {T<:AbstractFloat}
     if val != 0
         V[key] = val
         i,j,k,l,n,m = key
@@ -199,6 +223,12 @@ Represents three-body interactions in the Hamiltonian.
 struct ThreeBodyTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
     bands::Int64
     V::Dict{NTuple{6,Int}, T}
+    function ThreeBodyTerm(bands::Int64, V::Dict{NTuple{6,Int}, T}) where {T<:AbstractFloat}
+        all(k -> all(>(0), k), keys(V)) || throw(ArgumentError("V has negative indices."))
+        V_hermitian, key_V = check_hermitian_dict(V)
+        V_hermitian || throw(ArgumentError("V is not Hermitian. Missing or inconsistent conjugate for key $(key_V)."))
+        return new{T}(bands, V)
+    end
 end
 # Constructors
 function ThreeBodyTerm(V::Vector{T}) where {T<:AbstractFloat}
@@ -267,7 +297,8 @@ Mean-field coupling term representing inter-chain spin interactions.
 
 # Fields
 - `J::Matrix{T}`: Inter-chain coupling matrix of size NxN, where J[i,j] couples site i
-  in the current chain to site j in neighboring chains.
+  in the current chain to site j in neighboring chains. Multiply with the coordination number
+  to account for multiple chains.
 - `spins::Union{Vector{T}, Matrix{T}}`: Expected spin expectation values from neighboring chains.
     - **Collinear**: A `Vector{T}` of length N containing z-components.
     - **Noncollinear**: A `Matrix{T}` of size Nx3 containing (x, y, z) components.
@@ -292,12 +323,77 @@ struct SpinMeanField{T<:AbstractFloat} <: AbstractHamiltonianTerm
     end
 end
 
+abstract type AbstractInterchainMF <: AbstractHamiltonianTerm end
+
+"""
+    ChargeGapMF{T<:AbstractFloat} <: AbstractInterchainMF
+
+Terms used in a perturbative treatment based on the charge gap, parametrizing
+effective interchain/interladder processes.
+
+# Fields
+- `t_inter::Dict{NTuple{2, Int64}, T}`
+    Inter-chain hopping parameters. `t_inter[(i,j)]` is the hopping amplitude 
+    from site i on chain 0 to site j on the neigboring chain. Has to be scaled with `√(z/Δ)`,
+    where `z` is the coordination number and `Δ` the charge/band gap.
+- `range::Int64`
+    Maximum distance between inter-chain hopping processes included.
+- `beta_uu::Matrix{T}`
+    Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↑⟩`. The matrix `⟨cₖ↓⁺cₗ↓⟩` is taken to be its adjoint.
+- `beta_ud::Matrix{T}`
+    Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↓⟩`. The matrix `⟨cₖ↓⁺cₗ↑⟩` is taken to be its adjoint.
+
+# Notes
+- The `beta` matrices are not fixed couplings: they should be iterated to convergence together
+  with the ground state (or other target state) to satisfy the chosen self-consistency condition.
+"""
+struct ChargeGapMF{T<:AbstractFloat} <: AbstractInterchainMF 
+    t_inter::Dict{NTuple{2, Int64}, T}
+    range::Int64
+    beta_uu::Matrix{T}
+    beta_ud::Matrix{T}
+    function ChargeGapMF(t_inter::Dict{NTuple{2, Int64}, T}, range::Int64,
+                beta_uu::Matrix{T}, beta_ud::Matrix{T},
+            ) where {T<:AbstractFloat}
+        range >= 0 || throw(ArgumentError("range must be a positive integer, got $range."))
+        all(k -> all(>(0), k[1]), keys(t_inter)) || throw(ArgumentError("t_inter has negative first index."))
+        (n, m) = size(beta_uu)
+        n, m = size(beta_uu)
+        n == m || throw(ArgumentError("beta_uu must be square, got size $(size(beta_uu))."))
+
+        sz = size(beta_uu)
+        size(beta_ud) == sz  == sz || throw(ArgumentError("All beta matrices must have matching dimensions ($sz)."))
+
+        return new{T}(t_inter, range, beta_uu, beta_ud)
+    end
+end
+"""
+    PairGapMF{T<:AbstractFloat} <: AbstractHamiltonianTerm
+
+Terms used in a perturbative treatment based on the pair gap, parameterizing 
+effective interchain/interladder processes. 
+Ref: Bollmark et al., Phys. Rev. X 13, 011039 (2023)
+
+# Fields
+- `alpha::Vector{T}`
+    Self-consistent parameters associated with pair-tunneling.
+- `beta::Vector{T}`
+    Self-consistent parameters associated with exchange.
+# Notes
+- `alpha` and `beta` are not fixed couplings: they should be iterated to convergence together
+  with the ground state (or other target state) to satisfy the chosen self-consistency condition.
+"""
+struct PairGapMF{T<:AbstractFloat} <: AbstractInterchainMF 
+    alpha::Vector{T}
+    beta::Vector{T}
+end
+
 """
     HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
 
 Represents Holstein-type electron–phonon coupling terms `w b⁺ᵢ bᵢ` and
-`gₐ(nᵢₐ-<n>)(b⁺ⱼ + bⱼ)` in the Hamiltonian.  The coupling may be local
-(`i=j`) or exponentially decaying with distance `exp(-rᵢⱼ/ξ)`.  Couplings
+`gₐ(nᵢₐ-<n>)(b⁺ⱼ + bⱼ)` in the Hamiltonian. The coupling may be local
+(`i=j`) or decaying with distance `rᵢⱼ^(-ξ)`. Couplings
 smaller than `threshold` are neglected.
 
 # Fields
@@ -310,9 +406,9 @@ smaller than `threshold` are neglected.
 - `mean_ne::T`  
     Mean number of electrons per site in the bare Hubbard model, used to
     normal-order the density operator.
-- `xi::T`  
-    Exponential decay length for non-local coupling (`0` means strictly local).
-- `threshold::T`  
+- `xi::T=Inf`  
+    Power law decay length for non-local coupling (`Inf` means strictly local).
+- `threshold::T=0`  
     Minimum coupling magnitude retained in the Hamiltonian; smaller values are
     dropped for efficiency.
 
@@ -321,7 +417,7 @@ smaller than `threshold` are neglected.
 
 All arguments are positional except `xi` and `threshold`, which are keyword
 arguments with default `0`.  Pass `xi > 0` together with a positive
-`threshold` to enable exponentially decaying non-local coupling.
+`threshold` to enable decaying non-local coupling.
 """
 struct HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
     w::Vector{T}
@@ -346,28 +442,8 @@ struct HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
         threshold >= zero(T) || throw(ArgumentError("threshold must be non-negative, got $threshold."))
         !isfinite(xi) || threshold > zero(T) || throw(ArgumentError(
             "A positive threshold is required when xi < Inf to avoid retaining negligibly small long-range couplings."))
-        new{T}(w, g, max_b, mean_ne, xi, threshold)
+        return new{T}(w, g, max_b, mean_ne, xi, threshold)
     end
-end
-
-"""
-    Bollmark{T<:AbstractFloat} <: AbstractHamiltonianTerm
-
-Bollmark term used in a perturbative treatment, parameterizing effective interchain/interladder
-processes. Ref: Bollmark et al., Phys. Rev. X 13, 011039 (2023)
-
-# Fields
-- `alpha::Vector{T}`
-    Self-consistent parameters (e.g. mean-field amplitudes) associated with the first Bollmark term.
-- `beta::Vector{T}`
-    Self-consistent parameters (e.g. mean-field amplitudes) associated with the second Bollmark term.
-# Notes
-- `alpha` and `beta` are not fixed couplings: they should be iterated to convergence together
-  with the ground state (or other target state) to satisfy the chosen self-consistency condition.
-"""
-struct Bollmark{T<:AbstractFloat} <: AbstractHamiltonianTerm
-    alpha::Vector{T}
-    beta::Vector{T}
 end
 
 
@@ -376,11 +452,16 @@ end
 ######################
 
 # Check for duplicate Hamiltonian terms
+function get_family(::Type{T}) where {T<:AbstractHamiltonianTerm}
+    S = supertype(T)
+    (S === AbstractHamiltonianTerm || S === Any) ? T : get_family(S)
+end
 function find_duplicate(terms::Tuple)
     for (i, t) in enumerate(terms)
-        T = typeof(t)
+        T = get_family(typeof(t))
         for s in terms[i+1:end]
-            typeof(s) === T && return T
+            T2 = get_family(typeof(s))
+            T2 === T && return T
         end
     end
     return nothing
@@ -429,6 +510,7 @@ struct CalcConfig{
         dup === nothing || throw(ArgumentError("Duplicate Hamiltonian term detected: $dup."))
 
         bands = hubbard.bands
+        expected_sites = bands * symmetries.cell_width
 
         if symmetries.filling !== nothing
             n = numerator( symmetries.filling)
@@ -445,8 +527,11 @@ struct CalcConfig{
             if term isa HolsteinTerm
                 size(term.g, 1) == bands || throw(ArgumentError("Number of bands in HubbardParams ($bands) does not match first dimension of HolsteinTerm.g ($(size(term.g,1)))."))
             elseif term isa SpinMeanField
-                expected_sites = bands * symmetries.cell_width
                 size(term.J, 1) == expected_sites || throw(ArgumentError("Number of electron sites in cell ($expected_sites) does not match first dimension of SpinMeanField.J ($(size(term.J,1)))."))
+            elseif term isa ChargeGapMF
+                size(term.beta_uu, 1) == expected_sites || throw(ArgumentError("Number of electron sites in cell ($expected_sites) does not match first dimension of ChargeGapMF.beta_uu ($(size(term.beta_uu,1)))."))
+                max_index = maximum(k[1] for k in keys(term.t_inter))
+                max_index <= bands || throw(ArgumentError("Index in ChargeGapMF.t_inter ($(max_index)) exceeds number of bands ($bands)."))
             end
             if symmetries.filling !== nothing && term isa HolsteinTerm
                 newf = symmetries.filling * bands // (bands + length(term.w))
@@ -460,7 +545,7 @@ struct CalcConfig{
             end
         end
 
-        new{T, HamiltonianTerms}(symmetries, hubbard, terms)
+        return new{T, HamiltonianTerms}(symmetries, hubbard, terms)
     end
     CalcConfig(
             symmetries::SymmetryConfig, 

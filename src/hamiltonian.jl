@@ -20,6 +20,7 @@ end
 # Maps indices to actual lattice sites based on pattern key
 function compute_sites(indices::NTuple{N,Int}, key::Symbol) where {N}
     letters = collect(string(key))
+    @assert length(indices) == length(letters) "Number of indices must match number of characters in key."
     unique_letters = unique(letters)
 
     selected_indices = [indices[findfirst(==(letter), letters)] for letter in unique_letters]
@@ -150,7 +151,7 @@ function three_body_int_cached(ops, (i,j,k,l,m,n)::NTuple{6,Int})
         operator = three_body_int(ops, Val(key))
         three_body_cache[key] = operator
     end
-    sites = compute_sites((i,j,k,l), key)
+    sites = compute_sites((i,j,k,l,m,n), key)
 
     return operator, sites
 end
@@ -179,6 +180,7 @@ function build_ops(symm::SymmetryConfig, bands::Int64, max_b::Int64, nmodes::Int
     if ss === Trivial
         ops = merge(ops, (Sx = Sx(ps, ss; filling=fill), Sy = Sy(ps, ss; filling=fill)))
         ops = merge(ops, (c⁺c_ud = c_plusmin_updown(ps, ss; filling=fill), c⁺c_du = c_plusmin_downup(ps, ss; filling=fill)))
+        ops = merge(ops, (c⁺c_uu = c_plusmin_up(ps, ss; filling=fill), c⁺c_dd = c_plusmin_down(ps, ss; filling=fill)))
     end
     if ps === Trivial
         ops = merge(ops, (c⁺pair = create_pair_onesite(ps, ss; filling=fill), cpair = delete_pair_onesite(ps, ss; filling=fill)))
@@ -292,7 +294,6 @@ function hamiltonian_term(
                     boson_modes::Int64
                 )
     B = term.B
-    period = bands + boson_modes
 
     electron_sites = [i + div(i-1, bands)*boson_modes for i in 1:(cell_width*bands)]
 
@@ -337,87 +338,44 @@ function hamiltonian_term(
     end
     return InfiniteMPOHamiltonian(spaces, h...)
 end
-# Holstein coupling term
+# Charge gap mean field term
 function hamiltonian_term(
-                    term::HolsteinTerm, 
+                    term::ChargeGapMF, 
                     ops,
-                    spaces, 
+                    spaces,
                     cell_width::Int64,
                     bands::Int64,
                     boson_modes::Int64
                 )
-    w = term.w
-    g = term.g
-    mean_ne = term.mean_ne
-    xi = term.xi
+    hasproperty(ops, :c⁺c_uu) || throw(ArgumentError("ChargeGapMF requires Trivial spin symmetry."))
 
-    period = bands + boson_modes
+    electron_site(i) = 1 + fld(i - 1, bands) * (bands + boson_modes) + mod(i - 1, bands)
+    beta_index(i)    = mod1(i, bands*cell_width)
 
-    electron_sites = [i + div(i-1, bands)*boson_modes for i in 1:(cell_width*bands)]
-    electron_ind(i) = mod1(i, period)
-    phonon_sites = [i + bands + div(i-1, boson_modes)*bands for i in 1:(cell_width*boson_modes)]
-    phonon_ind(i) = mod1(i, period) - bands
-    cell(i) = div(i-1, period)
+    t_inter = term.t_inter
+    range   = term.range
 
-    H_ph = InfiniteMPOHamiltonian(spaces, [(i,) => w[phonon_ind(i)] * ops.nb for i in phonon_sites]...)
+    h = Any[]
+    for cell in 0:(cell_width-1), ((i, j), t_ij) in t_inter, ((k, l), t_kl) in t_inter, r in -range*bands:bands:range*bands
 
-    H_ep = 0 * H_ph
+        (abs(i - k - r) <= range && abs(j - l - r) <= range) || continue
+        
+        coefficient = 2 * t_ij * t_kl
+        sites   = (electron_site(i + cell*bands), electron_site(k + r + cell*bands))
+        idx = (beta_index(j + cell*bands), beta_index(l + r + cell*bands))
+        append!(h, [
+            sites => coefficient * term.beta_uu[idx...]  * ops.c⁺c_uu,
+            sites => coefficient * term.beta_ud[idx...]  * ops.c⁺c_ud,
+            sites => coefficient * term.beta_ud'[idx...] * ops.c⁺c_du,
+            sites => coefficient * term.beta_uu'[idx...] * ops.c⁺c_dd
+        ])
+    end 
 
-    # Precompute non-local exponential fit for a power-law
-    if term.xi != Inf
-        K = 1
-        cs, λs, err = inv_power_expsum(term.xi, K)
-
-        while err ≥ term.threshold
-            K += 1
-            cs, λs, err = inv_power_expsum(term.xi, K)
-        end
-
-        cs = real.(cs)
-        cs ./= sum(cs)
-        λs = real.(λs)
-
-        @info "Created exponential fit for non-local Holstein coupling" K=K err=err
-        println("cs = ", cs)
-        println("λs = ", λs)
-    end
-
-    for e in electron_sites
-        ce = cell(e)
-        be = electron_ind(e)
-        for p in phonon_sites
-            cp = cell(p)
-            m = phonon_ind(p)
-            O_e = g[be, m] * (ops.n - mean_ne * id(domain(ops.n)))
-            O_p = ops.bmin + ops.bplus
-            O_ep = O_e ⊗ O_p
-
-            if term.xi == Inf # Pure local Holstein coupling
-                if ce == cp
-                    H_ep += InfiniteMPOHamiltonian(spaces, (e, p) => O_ep)
-                end
-            else # Nonlocal Holstein coupling in terms of exponentials
-                if ce == cp
-                    println(e,p,g[be,m])
-                    for (c, λ) in zip(cs, λs)
-                        H_ep += exponential_mpo(spaces, (e, p), c * O_ep, λ^2)
-                    end
-
-                elseif abs(ce - cp) == 1
-                    println(e,p,g[be,m])
-                    for (c, λ) in zip(cs, λs)
-                        H_ep += exponential_mpo(spaces, (e, p), c * λ * O_ep, λ^2)
-                    end
-                end
-            end
-        end
-    end
-
-    return H_ph + H_ep
+    return InfiniteMPOHamiltonian(spaces, h...)
 end
-# Bollmark term
+# Pair gap mean field term
 function hamiltonian_term(
-                    term::Bollmark, 
+                    term::PairGapMF, 
                     ops,
                     spaces,
                     cell_width::Int64,
@@ -443,7 +401,7 @@ function hamiltonian_term(
             b00, b01, b10, b11 = term.beta
         end
     else
-        error("Bollmark term: only 1-band and 2-band models are implemented, got bands = $bands.")
+        error("PairGapMF term: only 1-band and 2-band models are implemented, got bands = $bands.")
     end
     
     h = Any[]
@@ -510,4 +468,80 @@ function hamiltonian_term(
 
         return InfiniteMPOHamiltonian(spaces, h...)
     end
+end
+# Holstein coupling term
+function hamiltonian_term(
+                    term::HolsteinTerm, 
+                    ops,
+                    spaces, 
+                    cell_width::Int64,
+                    bands::Int64,
+                    boson_modes::Int64
+                )
+    w = term.w
+    g = term.g
+    mean_ne = term.mean_ne
+    xi = term.xi
+
+    period = bands + boson_modes
+
+    electron_sites = [i + div(i-1, bands)*boson_modes for i in 1:(cell_width*bands)]
+    electron_ind(i) = mod1(i, period)
+    phonon_sites = [i + bands + div(i-1, boson_modes)*bands for i in 1:(cell_width*boson_modes)]
+    phonon_ind(i) = mod1(i, period) - bands
+    cell(i) = div(i-1, period)
+
+    H_ph = InfiniteMPOHamiltonian(spaces, [(i,) => w[phonon_ind(i)] * ops.nb for i in phonon_sites]...)
+
+    H_ep = 0 * H_ph
+
+    # Precompute non-local exponential fit for a power-law
+    if xi != Inf
+        K = 1
+        cs, λs, err = inv_power_expsum(xi, K)
+
+        while err ≥ term.threshold
+            K += 1
+            cs, λs, err = inv_power_expsum(xi, K)
+        end
+
+        cs = real.(cs)
+        cs ./= sum(cs)
+        λs = real.(λs)
+
+        @info "Created exponential fit for non-local Holstein coupling: K=$K err=$err"
+    end
+
+    for e in electron_sites
+        ce = cell(e)
+        be = electron_ind(e)
+        for p in phonon_sites
+            cp = cell(p)
+            m = phonon_ind(p)
+            O_e = g[be, m] * (ops.n - mean_ne * id(domain(ops.n)))
+            O_p = ops.bmin + ops.bplus
+            O_ep = O_e ⊗ O_p
+
+            if xi == Inf # Pure local Holstein coupling
+                if ce == cp
+                    H_ep += InfiniteMPOHamiltonian(spaces, (e, p) => O_ep)
+                end
+            else # Nonlocal Holstein coupling in terms of exponentials
+                if ce == cp
+                    println(e,p,g[be,m])
+                    for (c, λ) in zip(cs, λs)
+                        H_ep += exponential_mpo(spaces, (e, p), c * O_ep, λ^2)
+                    end
+
+                elseif abs(ce - cp) == 1
+                    println(e,p,g[be,m])
+                    for (c, λ) in zip(cs, λs)
+                        H_ep += exponential_mpo(spaces, (e, p), c * λ * O_ep, λ^2)
+                    end
+                end
+            end
+        end
+    end
+
+    return H_ph + H_ep
 end

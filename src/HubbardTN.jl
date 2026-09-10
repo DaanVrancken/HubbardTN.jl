@@ -5,7 +5,7 @@ export c_plusmin, c_minplus, number_up, number_down, number_e, number_pair, Sx, 
 export b_plus, b_min, number_b
 export create_pair_onesite, delete_pair_onesite
 export SymmetryConfig, HubbardParams, CalcConfig
-export ThreeBodyTerm, MagneticField, StaggeredField, SpinMeanField, HolsteinTerm, Bollmark
+export ThreeBodyTerm, MagneticField, StaggeredField, SpinMeanField, ChargeGapMF, PairGapMF, HolsteinTerm, Bollmark
 export hamiltonian, compute_groundstate, find_chemical_potential
 export compute_excitations, compute_domainwall, compute_bandgap, compute_spingap, compute_pairing_energy, compute_chargegap
 export dim_state, density_e, density_b, density_spin, calc_ms, density_correlations
