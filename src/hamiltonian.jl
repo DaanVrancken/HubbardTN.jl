@@ -364,10 +364,10 @@ function hamiltonian_term(
         sites   = (electron_site(i + cell*bands), electron_site(k + r + cell*bands))
         idx = (beta_index(j + cell*bands), beta_index(l + r + cell*bands))
         append!(h, [
-            sites => coefficient * term.beta_uu[idx...] * ops.c⁺c_uu,
-            sites => coefficient * term.beta_ud[idx...] * ops.c⁺c_ud,
-            sites => coefficient * term.beta_du[idx...] * ops.c⁺c_du,
-            sites => coefficient * term.beta_dd[idx...] * ops.c⁺c_dd
+            sites => coefficient * term.beta_uu[idx...]  * ops.c⁺c_uu,
+            sites => coefficient * term.beta_ud[idx...]  * ops.c⁺c_ud,
+            sites => coefficient * term.beta_ud'[idx...] * ops.c⁺c_du,
+            sites => coefficient * term.beta_uu'[idx...] * ops.c⁺c_dd
         ])
     end 
 

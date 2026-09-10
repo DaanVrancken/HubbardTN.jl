@@ -339,13 +339,9 @@ effective interchain/interladder processes.
 - `range::Int64`
     Maximum distance between inter-chain hopping processes included.
 - `beta_uu::Matrix{T}`
-    Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↑⟩`.
+    Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↑⟩`. The matrix `⟨cₖ↓⁺cₗ↓⟩` is taken to be its adjoint.
 - `beta_ud::Matrix{T}`
-    Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↓⟩`.
-- `beta_du::Matrix{T}`
-    Matrix of self-consistent parameters `⟨cₖ↓⁺cₗ↑⟩`.
-- `beta_dd::Matrix{T}`
-    Matrix of self-consistent parameters `⟨cₖ↓⁺cₗ↓⟩`.
+    Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↓⟩`. The matrix `⟨cₖ↓⁺cₗ↑⟩` is taken to be its adjoint.
 
 # Notes
 - The `beta` matrices are not fixed couplings: they should be iterated to convergence together
@@ -356,11 +352,8 @@ struct ChargeGapMF{T<:AbstractFloat} <: AbstractInterchainMF
     range::Int64
     beta_uu::Matrix{T}
     beta_ud::Matrix{T}
-    beta_du::Matrix{T}
-    beta_dd::Matrix{T}
     function ChargeGapMF(t_inter::Dict{NTuple{2, Int64}, T}, range::Int64,
                 beta_uu::Matrix{T}, beta_ud::Matrix{T},
-                beta_du::Matrix{T}, beta_dd::Matrix{T}
             ) where {T<:AbstractFloat}
         range >= 0 || throw(ArgumentError("range must be a positive integer, got $range."))
         all(k -> all(>(0), k[1]), keys(t_inter)) || throw(ArgumentError("t_inter has negative first index."))
@@ -369,10 +362,9 @@ struct ChargeGapMF{T<:AbstractFloat} <: AbstractInterchainMF
         n == m || throw(ArgumentError("beta_uu must be square, got size $(size(beta_uu))."))
 
         sz = size(beta_uu)
-        size(beta_ud) == sz && size(beta_du) == sz && size(beta_dd) == sz || 
-            throw(ArgumentError("All beta matrices must have matching dimensions ($sz)."))
+        size(beta_ud) == sz  == sz || throw(ArgumentError("All beta matrices must have matching dimensions ($sz)."))
 
-        return new{T}(t_inter, range, beta_uu, beta_ud, beta_du, beta_dd)
+        return new{T}(t_inter, range, beta_uu, beta_ud)
     end
 end
 """
