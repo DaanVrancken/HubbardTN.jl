@@ -1,162 +1,3 @@
-####################
-# Helper functions #
-####################
-
-# Maps (i,j,k,l) → Symbol(:aabb), :abab, :abcd, etc.
-function pattern_key(indices::Vararg{Int})
-    seen = Dict{Int,Char}()
-    nextchar = 'a'
-    keychars = Char[]
-    for idx in indices
-        if !haskey(seen, idx)
-            seen[idx] = nextchar
-            nextchar = Char(nextchar + 1)
-        end
-        push!(keychars, seen[idx])
-    end
-
-    return Symbol(String(keychars))
-end
-# Maps indices to actual lattice sites based on pattern key
-function compute_sites(indices::NTuple{N,Int}, key::Symbol) where {N}
-    letters = collect(string(key))
-    @assert length(indices) == length(letters) "Number of indices must match number of characters in key."
-    unique_letters = unique(letters)
-
-    selected_indices = [indices[findfirst(==(letter), letters)] for letter in unique_letters]
-
-    return tuple((idx for idx in selected_indices)...)
-end
-
-
-#############################
-# Two-body interaction term #
-#############################
-
-# Direct on-site: (i,i,i,i)
-function two_body_int(ops, ::Val{:aaaa})
-    return @tensor operator[-1; -2] := 2 * ops.n_pair[-1; -2] # factor 2 to counter double counting
-end
-# Direct inter-site: (i,j,j,i)
-function two_body_int(ops, ::Val{:abba})
-    return @tensor operator[-1 -2; -3 -4] := ops.n[-1; -3] * ops.n[-2; -4]
-end
-# Exchange: (i,j,i,j)
-function two_body_int(ops, ::Val{:abab})
-    return @tensor operator[-1 -2; -3 -4] := ops.c⁺c[-1 a; b -4] * ops.c⁺c[-2 b; a -3]
-end
-# Pair-exchange: (i,i,k,k)
-function two_body_int(ops, ::Val{:aabb})
-    return @tensor operator[-1 -2; -3 -4] := ops.c⁺c[-1 a; b -4] * ops.c⁺c[b -2; -3 a]
-end
-# Bond-charge: (i,i,i,l)
-function two_body_int(ops, ::Val{:aaab})
-    return @tensor operator[-1 -2; -3 -4] := ops.n[a; -3] * ops.c⁺c[-1 -2; a -4]
-end
-# Conjugated variant: (i,j,j,j)
-function two_body_int(ops, ::Val{:abbb})
-    return @tensor operator[-1 -2; -3 -4] := ops.c⁺c[-1 a; -3 -4] * ops.n[-2; a]
-end
-# Bond-charge: (i,i,k,i)
-function two_body_int(ops, ::Val{:aaba})
-    return @tensor operator[-1 -2; -3 -4] := ops.c⁺c[-1 a; b -3] * ops.c⁺c[b -2; a -4]
-end
-# Conjugated variant: (i,j,i,i)
-function two_body_int(ops, ::Val{:abaa})
-    return @tensor operator[-1 -2; -3 -4] := ops.c⁺c[-1 a; b -3] * ops.c⁺c[-2 b; -4 a]
-end
-# Three distinct sites: (i,i,k,l)
-function two_body_int(ops, ::Val{:aabc})
-    return @tensor operator[-1 -2 -3; -4 -5 -6] := ops.c⁺c[-1 -3; a -6] * ops.c⁺c[a -2; -4 -5]
-end
-# (i,j,i,l)
-function two_body_int(ops, ::Val{:abac})
-    return @tensor operator[-1 -2 -3; -4 -5 -6] := ops.c⁺c[-1 -3; a -6] * ops.c⁺c[-2 a; -5 -4]
-end
-# (i,j,k,i)
-function two_body_int(ops, ::Val{:abca})
-    return @tensor operator[-1 -2 -3; -4 -5 -6] := ops.n[-1; -4] * ops.c⁺c[-2 -3; -5 -6]
-end
-# (i,j,j,l)
-function two_body_int(ops, ::Val{:abbc})
-    return @tensor operator[-1 -2 -3; -4 -5 -6] := ops.n[-2; -5] * ops.c⁺c[-1 -3; -4 -6]
-end
-# (i,j,k,k)
-function two_body_int(ops, ::Val{:abcc})
-    return @tensor operator[-1 -2 -3; -4 -5 -6] := ops.c⁺c[-1 a; -4 -6] * ops.c⁺c[-2 -3; -5 a]
-end
-# (i,j,k,j)
-function two_body_int(ops, ::Val{:abcb})
-    return @tensor operator[-1 -2 -3; -4 -5 -6] := ops.c⁺c[-1 a; -4 -5] * ops.c⁺c[-2 -3; a -6]
-end
-# Four distinct sites: (i,j,k,l)
-function two_body_int(ops, ::Val{:abcd})
-    return @tensor operator[-1 -2 -3 -4; -5 -6 -7 -8] := ops.c⁺c[-1 -4; -5 -8] * ops.c⁺c[-2 -3; -6 -7]
-end
-
-# Caching constructed two-body operators
-const two_body_cache = Dict{Symbol,Any}()
-function two_body_int_cached(ops, (i,j,k,l)::NTuple{4,Int})
-    key = pattern_key(i,j,k,l)
-
-    if haskey(two_body_cache, key)
-        operator = two_body_cache[key]
-    else
-        operator = two_body_int(ops, Val(key))
-        two_body_cache[key] = operator
-    end
-    sites = compute_sites((i,j,k,l), key)
-
-    return operator, sites
-end
-
-
-###############################
-# Three-body interaction term #
-###############################
-
-function three_body_int(ops, ::Val{key}) where key
-    pattern = String(key)
-    @assert length(pattern) == 6 "Three-body terms must have six indices."
-
-    if all(pattern[1] == pattern[i] for i in 2:3)
-        error("Three-body term of type V_iiilmn (first three equal) is not allowed.")
-    elseif all(pattern[end] == pattern[end-i+1] for i in 1:3)
-        error("Three-body term of type V_ijklll (last three equal) is not allowed.")
-    end
-
-    return _three_body_int(ops, Val(key))
-end
-function _three_body_int(ops, ::Val{:aabbaa})
-    return @tensor operator[-1 -2; -3 -4] := 2 * ops.n_pair[-1; -3] * ops.n[-2; -4] # factor 2 to counter double counting
-end
-function _three_body_int(ops, ::Val{:abaaba})
-    return @tensor operator[-1 -2; -3 -4] := 2 * ops.n_pair[-1; -3] * ops.n[-2; -4]
-end
-function _three_body_int(ops, ::Val{:abbbba})
-    return @tensor operator[-1 -2; -3 -4] := 2 * ops.n[-1; -3] * ops.n_pair[-2; -4]
-end
-function _three_body_int(ops, ::Val{key}) where key
-    error("Interaction terms with indices $key are not implemented")
-end
-
-# Caching constructed three-body operators
-const three_body_cache = Dict{Symbol,Any}()
-function three_body_int_cached(ops, (i,j,k,l,m,n)::NTuple{6,Int})
-    key = pattern_key(i,j,k,l,m,n)
-
-    if haskey(three_body_cache, key)
-        operator = three_body_cache[key]
-    else
-        operator = three_body_int(ops, Val(key))
-        three_body_cache[key] = operator
-    end
-    sites = compute_sites((i,j,k,l,m,n), key)
-
-    return operator, sites
-end
-
-
 ############################
 # Hamiltonian construction #
 ############################
@@ -171,8 +12,9 @@ function build_ops(symm::SymmetryConfig, bands::Int64, max_b::Int64, nmodes::Int
 
     ops = (
         c⁺c      = c_plusmin(ps, ss; filling=fill),
-        n_pair   = number_pair(ps, ss; filling=fill),
-        n        = number_e(ps, ss; filling=fill)
+        n        = number_e(ps, ss; filling=fill),
+        c⁺c⁺cc   = two_body(ps, ss; filling=fill),
+        c⁺c⁺c⁺ccc = three_body(ps, ss; filling=fill)
     )
     if ss !== SU2Irrep
         ops = merge(ops, (Sz = Sz(ps, ss; filling=fill),))
@@ -233,19 +75,13 @@ function hamiltonian(calc::CalcConfig{T}) where {T<:AbstractFloat}
     # --- Hopping ---
     for cell in 0:(cell_width-1)
         site(i) = i + cell*period + div(i-1, bands)*boson_modes
-        h = append!(h, [site.((i,j)) => -t_ij*ops.c⁺c for ((i,j), t_ij) in t if i != j])
-        h = append!(h, [(site(i),) => -μ_i*ops.n for ((i,j), μ_i) in t if i == j])
+        h = append!(h, [site.((i,j)) => -t_ij*ops.c⁺c for ((i,j), t_ij) in t])
     end
 
     # --- 2-body Interaction ---
     for cell in 0:(cell_width-1)
         site(i) = i + cell*period + div(i-1, bands)*boson_modes
-        h = append!(h, [
-            begin 
-                operator, indices = two_body_int_cached(ops, site.((i,j,k,l)))
-                indices => 0.5 * U_ijkl * operator
-            end for ((i,j,k,l), U_ijkl) in U
-        ])
+        h = append!(h, [site.((i,j,k,l)) => 0.5 * U_ijkl * ops.c⁺c⁺cc for ((i,j,k,l), U_ijkl) in U])
     end
 
     H = InfiniteMPOHamiltonian(spaces, h...)
@@ -274,12 +110,7 @@ function hamiltonian_term(
 
     for cell in 0:(cell_width-1)
         site(i) = i + cell*period + div(i-1, bands)*boson_modes
-        h = append!(h, [
-            begin
-                operator, indices = three_body_int_cached(ops, site.((i,j,k,l,m,n)))
-                indices => 1/6 * V_ijklmn * operator
-            end for ((i,j,k,l,m,n), V_ijklmn) in V
-        ])
+        h = append!(h, [site.((i,j,k,l,m,n)) => 1/6 * V_ijklmn * ops.c⁺c⁺c⁺ccc for ((i,j,k,l,m,n), V_ijklmn) in V])
     end
 
     return InfiniteMPOHamiltonian(spaces, h...)

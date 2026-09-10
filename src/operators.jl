@@ -354,6 +354,58 @@ function c_minplus(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_sy
 end
 
 """
+    create_pair_onesite(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector})
+
+Return the one-body onsite pair creation operator Δ† = c†_↑ c†_↓.
+It maps the empty state |0⟩ to the doubly occupied state |↑↓⟩.
+"""
+create_pair_onesite(P::Type{<:Sector}, S::Type{<:Sector}; kwargs...) = create_pair_onesite(ComplexF64, P, S; kwargs...)
+function create_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{U1Irrep}; kwargs...)
+    t = single_site_operator(T, Trivial, U1Irrep)
+    I = sectortype(t)
+    t[(I(0, 0), dual(I(0, 0)))][2, 1] = 1
+    return t
+end
+function create_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{SU2Irrep}; kwargs...)
+    t = single_site_operator(T, Trivial, SU2Irrep)
+    I = sectortype(t)
+    block(t, I(0, 0))[2, 1] = 1
+    return t
+end
+function create_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{Trivial}; kwargs...)
+    t = single_site_operator(T, Trivial, Trivial)
+    I = sectortype(t)
+    t[(I(0), dual(I(0)))][2, 1] = 1
+    return t
+end
+
+"""
+    delete_pair_onesite(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector})
+
+Return the one-body onsite pair annihilation operator Δ = c_↓ c_↑.
+It maps the doubly occupied state |↑↓⟩ to the empty state |0⟩.
+"""
+delete_pair_onesite(P::Type{<:Sector}, S::Type{<:Sector}; kwargs...) = delete_pair_onesite(ComplexF64, P, S; kwargs...)
+function delete_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{U1Irrep}; kwargs...)
+    t = single_site_operator(T, Trivial, U1Irrep)
+    I = sectortype(t)
+    t[(I(0, 0), dual(I(0, 0)))][1, 2] = 1
+    return t
+end
+function delete_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{SU2Irrep}; kwargs...)
+    t = single_site_operator(T, Trivial, SU2Irrep)
+    I = sectortype(t)
+    block(t, I(0, 0))[1,2] = 1
+    return t
+end
+function delete_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{Trivial}; kwargs...)
+    t = single_site_operator(T, Trivial, Trivial)
+    I = sectortype(t)
+    t[(I(0), dual(I(0)))][1, 2] = 1
+    return t
+end
+
+"""
     number_up(particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector})
 
 Return the one-body operator that counts the number of spin-up electrons.
@@ -574,53 +626,25 @@ function Sz(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry:
 end
 
 """
-    create_pair_onesite(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector})
+    two_body(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector})
 
-Return the one-body onsite pair creation operator Δ† = c†_↑ c†_↓.
-It maps the empty state |0⟩ to the doubly occupied state |↑↓⟩.
+Return the general two-body operator c†_{i} c†_{j} c_{k} c_{l}.
 """
-create_pair_onesite(P::Type{<:Sector}, S::Type{<:Sector}; kwargs...) = create_pair_onesite(ComplexF64, P, S; kwargs...)
-function create_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{U1Irrep}; kwargs...)
-    t = single_site_operator(T, Trivial, U1Irrep)
-    I = sectortype(t)
-    t[(I(0, 0), dual(I(0, 0)))][2, 1] = 1
-    return t
-end
-function create_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{SU2Irrep}; kwargs...)
-    t = single_site_operator(T, Trivial, SU2Irrep)
-    I = sectortype(t)
-    block(t, I(0, 0))[2, 1] = 1
-    return t
-end
-function create_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{Trivial}; kwargs...)
-    t = single_site_operator(T, Trivial, Trivial)
-    I = sectortype(t)
-    t[(I(0), dual(I(0)))][2, 1] = 1
-    return t
+two_body(P::Type{<:Sector}, S::Type{<:Sector}; kwargs...) = two_body(ComplexF64, P, S; kwargs...)
+function two_body(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector}; kwargs...)
+    c⁺c = c_plusmin(T, particle_symmetry, spin_symmetry; kwargs...)
+    @tensor foursite[-1 -2 -3 -4; -5 -6 -7 -8] := c⁺c[-1 -4; -5 -8] * c⁺c[-2 -3; -6 -7]
+    return foursite
 end
 
 """
-    delete_pair_onesite(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector})
+    three_body(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector})
 
-Return the one-body onsite pair annihilation operator Δ = c_↓ c_↑.
-It maps the doubly occupied state |↑↓⟩ to the empty state |0⟩.
+Return the general three-body operator c†_{i} c†_{j} c†_{k} c_{l} c_{m} c_{n}.
 """
-delete_pair_onesite(P::Type{<:Sector}, S::Type{<:Sector}; kwargs...) = delete_pair_onesite(ComplexF64, P, S; kwargs...)
-function delete_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{U1Irrep}; kwargs...)
-    t = single_site_operator(T, Trivial, U1Irrep)
-    I = sectortype(t)
-    t[(I(0, 0), dual(I(0, 0)))][1, 2] = 1
-    return t
-end
-function delete_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{SU2Irrep}; kwargs...)
-    t = single_site_operator(T, Trivial, SU2Irrep)
-    I = sectortype(t)
-    block(t, I(0, 0))[1,2] = 1
-    return t
-end
-function delete_pair_onesite(T::Type{<:Number}, ::Type{Trivial}, ::Type{Trivial}; kwargs...)
-    t = single_site_operator(T, Trivial, Trivial)
-    I = sectortype(t)
-    t[(I(0), dual(I(0)))][1, 2] = 1
-    return t
+three_body(P::Type{<:Sector}, S::Type{<:Sector}; kwargs...) = three_body(ComplexF64, P, S; kwargs...)
+function three_body(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector}; kwargs...)
+    c⁺c = c_plusmin(T, particle_symmetry, spin_symmetry; kwargs...)
+    @tensor sixsite[-1 -2 -3 -4 -5 -6; -7 -8 -9 -10 -11 -12] := c⁺c[-1 -6; -7 -12] * c⁺c[-2 -5; -8 -11] * c⁺c[-3 -4; -9 -10]
+    return sixsite
 end
