@@ -38,6 +38,9 @@ ti = time()
     if GROUP == "ALL" || GROUP == "SPINFIELD"
         @time include("SpinField.jl")
     end
+    if GROUP == "ALL" || GROUP == "CHARGEGAPMF"
+        @time include("ChargeGapMF.jl")
+    end
     if GROUP == "ALL" || GROUP == "HOLSTEIN"
         @time include("Holstein.jl")
     end
@@ -53,6 +56,8 @@ println(round(ti/60, digits = 3), " minutes")
 println("
 Not included in tests:
 - Equivalence of different symmetries.
-- compute_domainwall().
+- Several combinations of terms in Hamiltonian.
+- PairGapMF
+- compute_domainwall(), get_alpha(), get_beta(), density_correlations().
 - Saving tools.
 ")
