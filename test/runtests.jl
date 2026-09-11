@@ -55,7 +55,6 @@ println(round(ti/60, digits = 3), " minutes")
 
 println("
 Not included in tests:
-- Equivalence of different symmetries.
 - Several combinations of terms in Hamiltonian.
 - PairGapMF
 - compute_domainwall(), get_alpha(), get_beta(), density_correlations().
