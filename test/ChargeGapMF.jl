@@ -22,7 +22,7 @@ println("
     range   = 1
     beta    = ones(6, 6)
 
-    term = ChargeGapMF(t_inter, range, beta, beta)
+    term = ChargeGapMF(t_inter, range, beta, beta, beta)
 
     # Hamiltonian
     calc = CalcConfig(symm, model, term)
@@ -37,7 +37,7 @@ end
     t_inter = Dict((1, 1) => 1.0)
     range   = 1
     beta    = zeros(2,2)
-    term    = ChargeGapMF(t_inter, range, beta, [1.0 0.0; 0.0 1.0])
+    term    = ChargeGapMF(t_inter, range, beta, [1.0 0.0; 0.0 1.0], beta)
 
     calc = CalcConfig(symm, model, term)
 
