@@ -200,7 +200,7 @@ function hamiltonian_term(
             sites => coefficient * term.beta_uu[idx...]  * ops.c⁺c_uu,
             sites => coefficient * term.beta_ud[idx...]  * ops.c⁺c_ud,
             sites => coefficient * term.beta_ud'[idx...] * ops.c⁺c_du,
-            sites => coefficient * term.beta_uu'[idx...] * ops.c⁺c_dd
+            sites => coefficient * term.beta_dd[idx...]  * ops.c⁺c_dd
         ])
     end 
 
