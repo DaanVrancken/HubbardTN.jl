@@ -24,10 +24,11 @@ A typical HubbardTN simulation follows a clear sequence of steps:
 
 1. **Define the symmetries.**  
    Every model includes a built-in fermionic **ℤ₂ symmetry**.  
-   For the particle and spin symmetries, you can choose among:
+   For particle-number and spin symmetries, you can choose from:
    - `Trivial`
    - `U1Irrep`
-   - `SU2Irrep`  
+   For the spin symmetry, you can additionally choose:
+   - `SU2Irrep`
 
    These are specified in a [`SymmetryConfig`](@ref) object.
 
