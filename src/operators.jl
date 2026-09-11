@@ -304,16 +304,16 @@ function c_plusmin(T::Type{<:Number}, ::Type{Trivial}, ::Type{SU2Irrep}; kwargs.
     I = sectortype(t)
     f1 = only(fusiontrees((I(0, 0), I(1, 1 // 2)), I(1, 1 // 2)))
     f2 = only(fusiontrees((I(1, 1 // 2), I(0, 0)), I(1, 1 // 2)))
-    t[f1, f2][1, 1, 1, 1] = 1
+    t[f2, f1][1, 1, 1, 1] = 1
     f3 = only(fusiontrees((I(1, 1 // 2), I(0, 0)), I(1, 1 // 2)))
     f4 = only(fusiontrees((I(0, 0), I(1, 1 // 2)), I(1, 1 // 2)))
-    t[f3, f4][1, 2, 2, 1] = -1
+    t[f4, f3][2, 1, 1, 2] = -1
     f5 = only(fusiontrees((I(0, 0), I(0, 0)), I(0, 0)))
     f6 = only(fusiontrees((I(1, 1 // 2), I(1, 1 // 2)), I(0, 0)))
-    t[f5, f6][1, 2, 1, 1] = sqrt(2)
+    t[f6, f5][1, 1, 1, 2] = sqrt(2)
     f7 = only(fusiontrees((I(1, 1 // 2), I(1, 1 // 2)), I(0, 0)))
     f8 = only(fusiontrees((I(0, 0), I(0, 0)), I(0, 0)))
-    t[f7, f8][1, 1, 2, 1] = sqrt(2)
+    t[f8, f7][2, 1, 1, 1] = sqrt(2)
     return t
 end
 function c_plusmin(T::Type{<:Number}, ::Type{U1Irrep}, ::Type{SU2Irrep}; filling::Rational{Int}=1//1)

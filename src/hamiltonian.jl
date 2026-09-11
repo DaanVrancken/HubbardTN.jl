@@ -220,7 +220,8 @@ function hamiltonian_term(
 
     if hasproperty(ops, :cpair)
         hopping_onsite = ops.c⁺pair + ops.cpair
-        hopping_pair = HubbardOperators.d_plus_u_plus(ComplexF64,Trivial,U1Irrep) + HubbardOperators.u_min_d_min(ComplexF64,Trivial,U1Irrep)
+        hopping_pair = HubbardOperators.d_plus_u_plus(ComplexF64,Trivial,U1Irrep) + 
+                            HubbardOperators.u_min_d_min(ComplexF64,Trivial,U1Irrep)
     end
 
     if bands == 1

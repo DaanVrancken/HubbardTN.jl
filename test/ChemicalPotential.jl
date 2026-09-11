@@ -6,7 +6,7 @@ println("
 
 tol = 1e-1
 
-@testset "Find chemical potential" for spin_symmetry in [U1Irrep, SU2Irrep]
+@testset "Find chemical potential" for spin_symmetry in [Trivial, U1Irrep, SU2Irrep]
     particle_symmetry = Trivial
     cell_width = 2
 
