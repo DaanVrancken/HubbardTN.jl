@@ -326,7 +326,7 @@ end
 abstract type AbstractInterchainMF <: AbstractHamiltonianTerm end
 
 """
-    ChargeGapMF{T<:AbstractFloat} <: AbstractInterchainMF
+    ChargeGapMF{T<:Real,S<:Number} <: AbstractInterchainMF
 
 Terms used in a perturbative treatment based on the charge gap, parametrizing
 effective interchain/interladder processes.
@@ -338,30 +338,29 @@ effective interchain/interladder processes.
     where `z` is the coordination number and `Δ` the charge/band gap.
 - `range::Int64`
     Maximum distance between inter-chain hopping processes included.
-- `beta_uu::Matrix{T}`
+- `beta_uu::Matrix{S}`
     Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↑⟩`.
-- `beta_ud::Matrix{T}`
+- `beta_ud::Matrix{S}`
     Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↓⟩`. The matrix `⟨cₖ↓⁺cₗ↑⟩` is taken to be its adjoint.
-- `beta_dd::Matrix{T}`
+- `beta_dd::Matrix{S}`
     Matrix of self-consistent parameters `⟨cₖ↓⁺cₗ↓⟩`.
 
 # Notes
 - The `beta` matrices are not fixed couplings: they should be iterated to convergence together
   with the ground state (or other target state) to satisfy the chosen self-consistency condition.
 """
-struct ChargeGapMF{T<:Number} <: AbstractInterchainMF 
+struct ChargeGapMF{T<:Real,S<:Number} <: AbstractInterchainMF 
     t_inter::Dict{NTuple{2, Int64}, T}
     range::Int64
-    beta_uu::Matrix{T}
-    beta_ud::Matrix{T}
-    beta_dd::Matrix{T}
+    beta_uu::Matrix{S}
+    beta_ud::Matrix{S}
+    beta_dd::Matrix{S}
     function ChargeGapMF(t_inter::Dict{NTuple{2, Int64}, T}, range::Int64,
-                beta_uu::Matrix{T}, beta_ud::Matrix{T}, beta_dd::Matrix{T}
-            ) where {T<:Number}
+                beta_uu::Matrix{S}, beta_ud::Matrix{S}, beta_dd::Matrix{S}
+            ) where {T<:Real,S<:Number}
         range >= 0 || throw(ArgumentError("range must be a positive integer, got $range."))
         all(k -> all(>(0), k[1]), keys(t_inter)) || throw(ArgumentError("t_inter has negative first index."))
         (n, m) = size(beta_uu)
-        n, m = size(beta_uu)
         n == m || throw(ArgumentError("beta_uu must be square, got size $(size(beta_uu))."))
 
         sz = size(beta_uu)
@@ -370,7 +369,7 @@ struct ChargeGapMF{T<:Number} <: AbstractInterchainMF
         isapprox(beta_uu, beta_uu') || throw(ArgumentError("beta_uu must be symmetric to ensure hermiticity."))
         isapprox(beta_dd, beta_dd') || throw(ArgumentError("beta_dd must be symmetric to ensure hermiticity."))
 
-        return new{T}(t_inter, range, beta_uu, beta_ud, beta_dd)
+        return new{T,S}(t_inter, range, beta_uu, beta_ud, beta_dd)
     end
 end
 """

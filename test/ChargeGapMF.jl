@@ -24,6 +24,11 @@ println("
 
     term = ChargeGapMF(t_inter, range, beta, beta, beta)
 
+    complex_beta = ComplexF64[1 1+im; 1-im 2]
+    complex_term = ChargeGapMF(t_inter, range, complex_beta, complex_beta, complex_beta)
+    @test eltype(complex_term.t_inter) <: Real
+    @test eltype(complex_term.beta_uu) <: Complex
+
     # Hamiltonian
     calc = CalcConfig(symm, model, term)
     @test typeof(hamiltonian(calc)) <: InfiniteMPOHamiltonian
