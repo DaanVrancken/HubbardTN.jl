@@ -17,18 +17,12 @@ spin_symmetry = U1Irrep
 t = Dict((1,2)=>1.0, (2,1)=>1.0, (1,1)=>2.0)
 U = Dict((1,1,1,1) => 4.0)
 
-t_tag = dict_tag(t)
-U_tag = dict_tag(U)
-
-t_imp = Dict((1,2)=>1.0, (2,1)=>1.0, (1,1)=>2.0)
-U_imp = Dict((1,1,1,1) => 4.0, (1,2,2,1) => 2.0, (2,1,1,2) => 2.0)
-
-t_tag_imp = dict_tag(t_imp)
-U_tag_imp = dict_tag(U_imp)
+t_imp = Dict((1,2)=>0.0, (2,1)=>0.0, (1,1)=>0.0)
+U_imp = Dict((1,1,1,1) => 0.0, (1,2,2,1) => 2.0, (2,1,1,2) => 2.0)  #Notice that the impurity parameters t_imp, U_imp represent the difference between the impurity and the bulk parameters.
 
 symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width, filling)
-model = HubbardParams(bands, t, U, ImpurityTerm(t, U, t_imp, U_imp))
-calc = CalcConfig(symm, model)
+model = HubbardParams(bands, t, U)
+calc = CalcConfig(symm, model, ImpurityTerm(t_imp, U_imp))
 gs = compute_groundstate(calc; svalue=s, finite_mps=true)
 ψ = gs["groundstate"]
 H = gs["ham"]

@@ -416,8 +416,7 @@ function hamiltonian_term(
 
     return H_ph + H_ep
 end
-
-
+# Impurity term
 function hamiltonian_term(
                     term::ImpurityTerm,
                     ops,
@@ -427,10 +426,8 @@ function hamiltonian_term(
                     boson_modes::Int64
                 )
 
-    t     = term.t
-    U     = term.U
-    t_imp = term.t_imp
-    U_imp = term.U_imp
+    Δt = term.t_imp
+    ΔU = term.U_imp
 
     imp_cell = div(cell_width, 2) - 1
 
@@ -440,26 +437,15 @@ function hamiltonian_term(
     for cell in 0:(cell_width-1)
         site(i) = i + cell*bands
 
-        for key in union(keys(t), keys(t_imp))
-            i, j = key
-
-            # Only modify hoppings touching the impurity cell
+        for ((i, j), Δt_ij) in Δt
             touches_imp = any(
                 x -> mod(cell + div(x-1, bands), cell_width) == imp_cell,
                 (i, j)
             )
             touches_imp || continue
 
-            t_old = get(t, key, 0.0)
-            t_new = get(t_imp, key, t_old)
-            Δt = t_new - t_old
-
-            if Δt != 0
-                if i != j
-                    push!(h, site.((i,j)) => -Δt * ops.c⁺c)
-                else
-                    push!(h, (site(i),) => -Δt * ops.n)
-                end
+            if Δt_ij != 0
+                h = append!(h, [site.((i,j)) => -Δt_ij*ops.c⁺c])
             end
         end
     end
@@ -468,26 +454,15 @@ function hamiltonian_term(
     for cell in 0:(cell_width-1)
         site(i) = i + cell*bands
 
-        for key in union(keys(U), keys(U_imp))
-            i, j, k, l = key
-
-            # Only modify interactions touching the impurity cell
+        for ((i, j, k, l), ΔU_ijkl) in ΔU
             touches_imp = any(
                 x -> mod(cell + div(x-1, bands), cell_width) == imp_cell,
                 (i, j, k, l)
             )
             touches_imp || continue
 
-            U_old = get(U, key, 0.0)
-            U_new = get(U_imp, key, U_old)
-            ΔU = U_new - U_old
-
-            if ΔU != 0
-                operator, indices = two_body_int_cached(
-                    ops,
-                    site.((i,j,k,l))
-                )
-                push!(h, indices => 0.5 * ΔU * operator)
+            if ΔU_ijkl != 0
+                h = append!(h, [site.((i,j,k,l)) => 0.5 * ΔU_ijkl * ops.c⁺c⁺cc ])
             end
         end
     end

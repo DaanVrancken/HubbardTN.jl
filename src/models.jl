@@ -127,7 +127,6 @@ multi-orbital system.
 
 # Constructors
 - `HubbardParams(bands, t::Dict, U::Dict)` — standard constructor specifying bands, hopping, and interactions.
-- `HubbardParams(bands, t::Dict, U::Dict, t_imp::Dict, U_imp::Dict)` — impurity constructor specifying bands, hopping, and interactions.
 - `HubbardParams(t::Vector, U::Vector)` — single-band convenience constructor from vectors.
 - `HubbardParams(t::Matrix, U::Matrix)` — multi-band constructor from matrices; automatically checks dimensions and Hermiticity.
 """
@@ -149,13 +148,6 @@ struct HubbardParams{T<:AbstractFloat}
 end
 # Constructors
 function HubbardParams(t::Union{Vector{T}, Matrix{T}}, U::Dict{NTuple{4,Int},T}) where {T<:AbstractFloat}
-    bands = isa(t, Matrix) ? size(t,1) : 1
-    return HubbardParams(bands, hopping_matrix2dict(t), U)
-end
-function HubbardParams(
-            t::Union{Vector{T}, Matrix{T}},
-            U::Dict{NTuple{4,Int},T},
-        ) where {T<:AbstractFloat}
     bands = isa(t, Matrix) ? size(t,1) : 1
     return HubbardParams(bands, hopping_matrix2dict(t), U)
 end
@@ -459,18 +451,32 @@ struct HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
     end
 end
 
+"""
+    ImpurityTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
 
+Represents a local impurity by modifying the hopping and two-body interaction
+parameters around the impurity site.
+
+# Fields
+- `t_imp::Dict{NTuple{2, Int64}, T}`  
+    Changes in the hopping amplitudes relative to the bare Hubbard model.
+    Entries `t_imp[(i,j)]` correspond to `Δt_ij = t'_ij - t_ij`.
+- `U_imp::Dict{NTuple{4, Int64}, T}`  
+    Changes in the two-body interaction tensor relative to the bare Hubbard model.
+    Entries `U_imp[(i,j,k,l)]` correspond to `ΔU_ijkl = U'_ijkl - U_ijkl`.
+
+# Constructors
+- `ImpurityTerm(t_imp, U_imp)` — creates an impurity term with modified hopping
+  and interaction parameters.
+"""
 struct ImpurityTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
-    t::Dict{NTuple{2, Int64}, T}      
-    U::Dict{NTuple{4, Int64}, T} 
     t_imp::Dict{NTuple{2, Int64}, T}         
     U_imp::Dict{NTuple{4, Int64}, T}          
 
-    function ImpurityTerm(
-                t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T}, 
+    function ImpurityTerm( 
                 t_imp::Dict{NTuple{2,Int64}, T}, U_imp::Dict{NTuple{4,Int},T}
             ) where {T<:AbstractFloat}
-        return new{T}(t, U, t_imp, U_imp)
+        return new{T}(t_imp, U_imp)
     end
 end
 
