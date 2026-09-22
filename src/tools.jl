@@ -192,9 +192,9 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
     @assert E != 0 "E must be nonzero"
 
     if bands == 1
-        cu  = real(expectation_value(ψ, 1 => number_up(ps, ss)))
-        cd  = real(expectation_value(ψ, 1 => number_down(ps, ss)))
-        c01 = real(expectation_value(ψ, (1,2) => c_plusmin(ps, ss)))
+        cu  = real(expectation_value(ψ, (1,1) => c_plusmin_up(ComplexF64, ps, ss)))
+        cd  = real(expectation_value(ψ, (1,1) => c_plusmin_down(ComplexF64, ps, ss)))
+        c01 = real(expectation_value(ψ, (1,2) => c_plusmin_up(ComplexF64, ps, ss)))
 
         println("cu = ", cu)
         println("cd = ", cd)
@@ -208,7 +208,7 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
             return [b0_u, b0_d, b01]
         end
 
-        c0_ud  = real(expectation_value(ψ, 1 => number_updown(ComplexF64, ps, ss)))
+        c0_ud  = real(expectation_value(ψ, (1,1) => c_plusmin_updown(ComplexF64, ps, ss)))
         c01_ud  = real(expectation_value(ψ, (1,2) => c_plusmin_updown(ComplexF64, ps, ss)))
 
         println("c0_ud = ", c0_ud)
@@ -220,8 +220,8 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
         return [b0_u, b0_d, b01, b0_ud, b01_ud]
 
     elseif bands == 2
-        c0_u  = real(expectation_value(ψ, 1 => number_up(ps, ss)))
-        c0_d  = real(expectation_value(ψ, 1 => number_down(ps, ss)))
+        c0_u  = real(expectation_value(ψ, (1,1) => c_plusmin_up(ComplexF64, ps, ss)))
+        c0_d  = real(expectation_value(ψ, (1,1) => c_plusmin_down(ComplexF64, ps, ss)))
         println("c0_u = ", c0_u)
         println("c0_d = ", c0_d)
 

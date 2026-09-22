@@ -91,78 +91,6 @@ function hamiltonian(calc::CalcConfig{T}) where {T<:AbstractFloat}
     return H
 end
 
-function hamiltonian_impurity(calc::CalcConfig{T}) where {T<:AbstractFloat}
-    empty!(two_body_cache)
-    empty!(three_body_cache)
-
-    bands = calc.hubbard.bands
-    t = calc.hubbard.t
-    U = calc.hubbard.U
-    t_imp = calc.hubbard.t_imp
-    U_imp = calc.hubbard.U_imp
-
-    idx = findfirst(t -> t isa HolsteinTerm, calc.terms)
-    max_b = (idx === nothing ? 0 : calc.terms[idx].max_b)
-    w = (idx === nothing ? [] : calc.terms[idx].w)
-    boson_modes = Int(max_b>0) * length(w)
-    period = bands + boson_modes
-
-    ops, spaces = build_ops(calc.symmetries, bands, max_b, boson_modes)
-    cell_width = calc.symmetries.cell_width
-    imp_cell = div(cell_width, 2)-1
-
-    h::Vector{Pair{Tuple{Vararg{Int64}}, Any}} = [(1,) => 0*ops.n]
-
-    # --- Hopping ---
-    for cell in 0:(cell_width-1)
-        site(i) = i + cell*period + div(i-1, bands)*boson_modes
-
-        for key in union(keys(t), keys(t_imp))
-            i, j = key
-
-            # Does this hopping touch the impurity cell?
-            touches_imp = any(x -> mod(cell + div(x-1, bands), cell_width) == imp_cell, (i, j))
-            t_use = touches_imp ? get(t_imp, key, get(t, key, zero(T))) : get(t, key, zero(T))
-
-            if t_use != 0
-                if i != j
-                    push!(h, site.((i,j)) => -t_use*ops.c⁺c)
-                else
-                    push!(h, (site(i),) => -t_use*ops.n)
-                end
-            end
-        end
-    end
-
-    # --- 2-body Interaction ---
-    for cell in 0:(cell_width-1)
-        site(i) = i + cell*period + div(i-1, bands)*boson_modes
-
-        for key in union(keys(U), keys(U_imp))
-            i, j, k, l = key
-
-            # Does this interaction touch the impurity cell?
-            touches_imp = any(x -> mod(cell + div(x-1, bands), cell_width) == imp_cell, (i, j, k, l))
-            U_use = touches_imp ? get(U_imp, key, get(U, key, zero(T))) : get(U, key, zero(T))
-
-            if U_use != 0
-                operator, indices = two_body_int_cached(ops, site.((i,j,k,l)))
-                push!(h, indices => 0.5 * U_use * operator)
-            end
-        end
-    end
-
-    H = InfiniteMPOHamiltonian(spaces, h...)
-
-    # --- Extra terms ---
-    for term in calc.terms
-        H += hamiltonian_term(term, ops, spaces, cell_width, bands, boson_modes)
-    end
-
-    return H
-end
-
-
 ###########################
 # Extra Hamiltonian terms #
 ###########################
@@ -332,10 +260,10 @@ function hamiltonian_term(
             ])
         end
         h = append!(h, [
-            (electron_sites[n],) => (
+            (electron_sites[n], electron_sites[n]) => (
                 isodd(n) ?
-                b0_u * ops.nup + b0_d * ops.ndn :
-                b0_d * ops.nup + b0_u * ops.ndn
+                b0_u * ops.c⁺c_uu + b0_d * ops.c⁺c_dd :
+                b0_d * ops.c⁺c_uu + b0_u * ops.c⁺c_dd
             )
             for n in 1:(length(electron_sites))
         ])
@@ -350,8 +278,8 @@ function hamiltonian_term(
 
         if hasproperty(ops, :c⁺c_ud)
             h = append!(h, [
-                (i,) => b0_ud*ops.n_ud + b0_ud*ops.n_du
-                for i in electron_sites
+                (electron_sites[n], electron_sites[n]) => b0_ud*ops.c⁺c_ud + b0_ud*ops.c⁺c_du
+                for n in 1:(length(electron_sites))
             ])
             h = append!(h, [
                 (electron_sites[n+1], electron_sites[n]) => b01_ud*ops.c⁺c_ud + b01_ud*ops.c⁺c_du
@@ -383,10 +311,10 @@ function hamiltonian_term(
         end
 
         h = append!(h, [
-            (electron_sites[n],) => (
+            (electron_sites[n], electron_sites[n]) => (
                 isodd(n) ?
-                b0_u * ops.nup + b0_d * ops.ndn :
-                b0_d * ops.nup + b0_u * ops.ndn
+                b0_u * ops.c⁺c_uu + b0_d * ops.c⁺c_dd :
+                b0_d * ops.c⁺c_uu + b0_u * ops.c⁺c_dd
             )
             for n in 1:(length(electron_sites))
         ])
@@ -487,4 +415,82 @@ function hamiltonian_term(
     end
 
     return H_ph + H_ep
+end
+
+
+function hamiltonian_term(
+                    term::Impurity,
+                    ops,
+                    spaces,
+                    cell_width::Int64,
+                    bands::Int64,
+                    boson_modes::Int64
+                )
+
+    t     = term.t
+    U     = term.U
+    t_imp = term.t_imp
+    U_imp = term.U_imp
+
+    imp_cell = div(cell_width, 2) - 1
+
+    h = Any[]
+
+    # --- Hopping correction ---
+    for cell in 0:(cell_width-1)
+        site(i) = i + cell*bands
+
+        for key in union(keys(t), keys(t_imp))
+            i, j = key
+
+            # Only modify hoppings touching the impurity cell
+            touches_imp = any(
+                x -> mod(cell + div(x-1, bands), cell_width) == imp_cell,
+                (i, j)
+            )
+            touches_imp || continue
+
+            t_old = get(t, key, 0.0)
+            t_new = get(t_imp, key, t_old)
+            Δt = t_new - t_old
+
+            if Δt != 0
+                if i != j
+                    push!(h, site.((i,j)) => -Δt * ops.c⁺c)
+                else
+                    push!(h, (site(i),) => -Δt * ops.n)
+                end
+            end
+        end
+    end
+
+    # --- 2-body interaction correction ---
+    for cell in 0:(cell_width-1)
+        site(i) = i + cell*bands
+
+        for key in union(keys(U), keys(U_imp))
+            i, j, k, l = key
+
+            # Only modify interactions touching the impurity cell
+            touches_imp = any(
+                x -> mod(cell + div(x-1, bands), cell_width) == imp_cell,
+                (i, j, k, l)
+            )
+            touches_imp || continue
+
+            U_old = get(U, key, 0.0)
+            U_new = get(U_imp, key, U_old)
+            ΔU = U_new - U_old
+
+            if ΔU != 0
+                operator, indices = two_body_int_cached(
+                    ops,
+                    site.((i,j,k,l))
+                )
+                push!(h, indices => 0.5 * ΔU * operator)
+            end
+        end
+    end
+
+    return InfiniteMPOHamiltonian(spaces, h...)
 end

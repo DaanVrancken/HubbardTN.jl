@@ -27,9 +27,9 @@ t_tag_imp = dict_tag(t_imp)
 U_tag_imp = dict_tag(U_imp)
 
 symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width, filling)
-model = HubbardParams(bands, t, U, t_imp, U_imp)
+model = HubbardParams(bands, t, U, ImpurityTerm(t, U, t_imp, U_imp))
 calc = CalcConfig(symm, model)
-gs = compute_groundstate(calc; svalue=s, finite_mps=true, imp_mps=true)
+gs = compute_groundstate(calc; svalue=s, finite_mps=true)
 ψ = gs["groundstate"]
 H = gs["ham"]
 

@@ -153,17 +153,11 @@ function compute_groundstate(
                 max_init_dim::Int=50,
                 verbosity::Int64=0,
                 finite_mps::Bool=false,
-                imp_mps::Bool=false,
                 Sz_target=0,
             )
     schmidtcut = 10.0^(-svalue)
     tol = max(tol, schmidtcut/10)
-    if imp_mps
-        @assert finite_mps "Impurity MPS calculations are only implemented for finite systems with PBCs."
-        H = hamiltonian_impurity(calc)
-    else
-        H = hamiltonian(calc)
-    end
+    H = hamiltonian(calc)
     total_width = length(H)
 
     if finite_mps

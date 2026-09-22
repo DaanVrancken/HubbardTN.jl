@@ -135,11 +135,8 @@ struct HubbardParams{T<:AbstractFloat}
     bands::Int64
     t::Dict{NTuple{2, Int64}, T}          # t_ii=µ_i, t_ij hopping i→j
     U::Dict{NTuple{4, Int64}, T}          # U_ijkl c⁺_i c⁺_j c_k c_l
-    t_imp::Dict{NTuple{2,Int},T}
-    U_imp::Dict{NTuple{4,Int},T}
 
-    function HubbardParams(bands::Int64, t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T},
-        t_imp::Dict{NTuple{2,Int},T}=copy(t), U_imp::Dict{NTuple{4,Int},T}=copy(U),) where {T<:AbstractFloat}
+    function HubbardParams(bands::Int64, t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T}) where {T<:AbstractFloat}
         bands > 0 || throw(ArgumentError("Number of bands must be a positive integer, got $bands."))
         all(k -> all(>(0), k), keys(t)) || throw(ArgumentError("t has negative indices."))
         all(k -> all(>(0), k), keys(U)) || throw(ArgumentError("U has negative indices."))
@@ -147,7 +144,7 @@ struct HubbardParams{T<:AbstractFloat}
         t_hermitian || throw(ArgumentError("t is not Hermitian. Missing or inconsistent conjugate for key $(key_t)."))
         U_hermitian, key_U = check_hermitian_dict(U) 
         U_hermitian || throw(ArgumentError("U is not Hermitian. Missing or inconsistent conjugate for key $(key_U)."))
-        return new{T}(bands, t, U, t_imp, U_imp)
+        return new{T}(bands, t, U)
     end
 end
 # Constructors
@@ -158,11 +155,9 @@ end
 function HubbardParams(
             t::Union{Vector{T}, Matrix{T}},
             U::Dict{NTuple{4,Int},T},
-            t_imp::Union{Vector{T}, Matrix{T}},
-            U_imp::Dict{NTuple{4,Int},T},
         ) where {T<:AbstractFloat}
     bands = isa(t, Matrix) ? size(t,1) : 1
-    return HubbardParams(bands, hopping_matrix2dict(t), U, hopping_matrix2dict(t_imp), U_imp)
+    return HubbardParams(bands, hopping_matrix2dict(t), U)
 end
 function HubbardParams(t::Vector{T}, U::Vector{T}) where {T<:AbstractFloat}
     interaction = Dict{NTuple{4,Int},T}()
@@ -464,6 +459,17 @@ struct HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
     end
 end
 
+
+struct ImpurityTerm{T<:AbstractFloat}
+    t::Dict{NTuple{2, Int64}, T}      
+    U::Dict{NTuple{4, Int64}, T} 
+    t_imp::Dict{NTuple{2, Int64}, T}         
+    U_imp::Dict{NTuple{4, Int64}, T}          
+
+    function ImpurityTerm(t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T}, t_imp::Dict{NTuple{2,Int64}, T}, U_imp::Dict{NTuple{4,Int},T}) where {T<:AbstractFloat}
+        return new{T}(t, U, t_imp, U_imp)
+    end
+end
 
 ######################
 # Calculation set up #
