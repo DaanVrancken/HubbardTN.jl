@@ -460,13 +460,16 @@ struct HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
 end
 
 
-struct ImpurityTerm{T<:AbstractFloat}
+struct ImpurityTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
     t::Dict{NTuple{2, Int64}, T}      
     U::Dict{NTuple{4, Int64}, T} 
     t_imp::Dict{NTuple{2, Int64}, T}         
     U_imp::Dict{NTuple{4, Int64}, T}          
 
-    function ImpurityTerm(t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T}, t_imp::Dict{NTuple{2,Int64}, T}, U_imp::Dict{NTuple{4,Int},T}) where {T<:AbstractFloat}
+    function ImpurityTerm(
+                t::Dict{NTuple{2,Int64}, T}, U::Dict{NTuple{4,Int},T}, 
+                t_imp::Dict{NTuple{2,Int64}, T}, U_imp::Dict{NTuple{4,Int},T}
+            ) where {T<:AbstractFloat}
         return new{T}(t, U, t_imp, U_imp)
     end
 end

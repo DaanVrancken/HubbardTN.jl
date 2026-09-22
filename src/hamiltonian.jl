@@ -419,7 +419,7 @@ end
 
 
 function hamiltonian_term(
-                    term::Impurity,
+                    term::ImpurityTerm,
                     ops,
                     spaces,
                     cell_width::Int64,
