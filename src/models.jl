@@ -336,41 +336,91 @@ effective interchain/interladder processes.
     Inter-chain hopping parameters. `t_inter[(i,j)]` is the hopping amplitude 
     from site i on chain 0 to site j on the neigboring chain. Has to be scaled with `√(z/Δ)`,
     where `z` is the coordination number and `Δ` the charge/band gap.
+- `bands::Int64`
+    Number of bands per unit cell. Must match the number defined in HubbardParams.
+- `cell_width::Int64`
+    Number of sites in the unit cell. Must match the number defined in SymmetryConfig.
 - `range::Int64`
-    Maximum distance between inter-chain hopping processes included.
-- `beta_uu::Matrix{S}`
-    Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↑⟩`.
-- `beta_ud::Matrix{S}`
-    Matrix of self-consistent parameters `⟨cₖ↑⁺cₗ↓⟩`. The matrix `⟨cₖ↓⁺cₗ↑⟩` is taken to be its adjoint.
-- `beta_dd::Matrix{S}`
-    Matrix of self-consistent parameters `⟨cₖ↓⁺cₗ↓⟩`.
+    Maximum unit-cell separation, beyond whatever spread `t_inter` itself already spans,
+    between the two neighboring-chain sites tracked in the `beta_*` correlators.
+- `beta_uu::Dict{NTuple{2, Int64}, S}`
+    Dictionary of self-consistent parameters `⟨cₖ↑⁺cₗ↑⟩`.
+- `beta_ud::Dict{NTuple{2, Int64}, S}`
+    Dictionary of self-consistent parameters `⟨cₖ↑⁺cₗ↓⟩`. The corresponding
+    `⟨cₖ↓⁺cₗ↑⟩` parameters are obtained from its adjoint.
+- `beta_dd::Dict{NTuple{2, Int64}, S}`
+    Dictionary of self-consistent parameters `⟨cₖ↓⁺cₗ↓⟩`.
+
+    Each beta dictionary must contain exactly the keys generated from pairs of
+    keys in `t_inter`. For every `(a, i)` and `(b, j)` in `keys(t_inter)`, and
+    for every cell offset `cw = 0:cell_width-1` and relative displacement
+    `r = -range*bands:bands:range*bands`, the required key is
+    `(i + cw*bands, j + r + cw*bands)` shifted so that the first index is in
+    the range `[1,bands*cell_width]`. Thus, all required combinations must be
+    present and no other keys are allowed.
+
+# Constructors
+- `ChargeGapMF(t_inter, bands, cell_width, range, beta_uu, beta_ud, beta_dd)`
+    Constructor accepting explicitly initialized beta dictionaries.
+- `ChargeGapMF(t_inter, bands, cell_width, range)`
+    Convenience constructor that creates all three beta dictionaries with the
+    required keys and initializes every value to zero.
 
 # Notes
-- The `beta` matrices are not fixed couplings: they should be iterated to convergence together
-  with the ground state (or other target state) to satisfy the chosen self-consistency condition.
+- The beta dictionaries are not fixed couplings: they should be iterated to
+    convergence together with the ground state (or other target state) to
+    satisfy the chosen self-consistency condition.
 """
 struct ChargeGapMF{T<:Real,S<:Number} <: AbstractInterchainMF 
     t_inter::Dict{NTuple{2, Int64}, T}
+    bands::Int64
+    cell_width::Int64
     range::Int64
-    beta_uu::Matrix{S}
-    beta_ud::Matrix{S}
-    beta_dd::Matrix{S}
-    function ChargeGapMF(t_inter::Dict{NTuple{2, Int64}, T}, range::Int64,
-                beta_uu::Matrix{S}, beta_ud::Matrix{S}, beta_dd::Matrix{S}
+    beta_uu::Dict{NTuple{2, Int64}, S}
+    beta_ud::Dict{NTuple{2, Int64}, S}
+    beta_dd::Dict{NTuple{2, Int64}, S}
+    function ChargeGapMF(t_inter::Dict{NTuple{2, Int64}, T}, bands::Int64, cell_width::Int64, range::Int64,
+                beta_uu::Dict{NTuple{2, Int64}, S}, beta_ud::Dict{NTuple{2, Int64}, S}, beta_dd::Dict{NTuple{2, Int64}, S}
             ) where {T<:Real,S<:Number}
+        bands > 0 || throw(ArgumentError("bands must be a positive integer, got $bands."))
+        cell_width > 0 || throw(ArgumentError("cell_width must be a positive integer, got $cell_width."))
         range >= 0 || throw(ArgumentError("range must be a positive integer, got $range."))
         all(k -> all(>(0), k[1]), keys(t_inter)) || throw(ArgumentError("t_inter has negative first index."))
-        (n, m) = size(beta_uu)
-        n == m || throw(ArgumentError("beta_uu must be square, got size $(size(beta_uu))."))
+        
+        expected_keys = Set{NTuple{2, Int64}}()
+        period = cell_width * bands
+        for (_, i) in keys(t_inter), (_, j) in keys(t_inter), r in -range*bands:bands:range*bands, cell in 0:cell_width-1
+            idx = (i + cell*bands, j + r + cell*bands)
+            # Shift to have first index in central unit cell
+            shift = mod1(idx[1], period) - idx[1]
+            idx = (idx[1] + shift, idx[2] + shift)
+            push!(expected_keys, idx)
+        end
 
-        sz = size(beta_uu)
-        size(beta_ud) == sz && size(beta_dd) == sz || throw(ArgumentError("All beta matrices must have matching dimensions ($sz)."))
+        for (dict, name) in ((beta_uu, "beta_uu"), (beta_ud, "beta_ud"), (beta_dd, "beta_dd"))
+            dict_keys = keys(dict)
+            missing_keys = setdiff(expected_keys, dict_keys)
+            isempty(missing_keys) || throw(ArgumentError("$name is missing elements: $(join(missing_keys, ", "))"))
+            extra_keys = setdiff(dict_keys, expected_keys)
+            isempty(extra_keys) || throw(ArgumentError("$name contains extra elements: $(join(extra_keys, ", "))"))
+        end
 
-        isapprox(beta_uu, beta_uu') || throw(ArgumentError("beta_uu must be symmetric to ensure hermiticity."))
-        isapprox(beta_dd, beta_dd') || throw(ArgumentError("beta_dd must be symmetric to ensure hermiticity."))
-
-        return new{T,S}(t_inter, range, beta_uu, beta_ud, beta_dd)
+        return new{T,S}(t_inter, bands, cell_width, range, beta_uu, beta_ud, beta_dd)
     end
+end
+function ChargeGapMF(
+            t_inter::Dict{NTuple{2, Int64}, T}, bands::Int64, cell_width::Int64, range::Int64
+        ) where {T<:Real}
+    beta = Dict{NTuple{2, Int64}, ComplexF64}()
+    period = cell_width * bands
+    for (_, i) in keys(t_inter), (_, j) in keys(t_inter), r in -range*bands:bands:range*bands, cell in 0:cell_width-1
+        idx = (i + cell*bands, j + r + cell*bands)
+        shift = mod1(idx[1], period) - idx[1]
+        idx = (idx[1] + shift, idx[2] + shift)
+        beta[idx] = 0.0 + 0.0im
+    end
+
+    return ChargeGapMF(t_inter, bands, cell_width, range, beta, copy(beta), copy(beta))
 end
 """
     PairGapMF{T<:AbstractFloat} <: AbstractHamiltonianTerm
@@ -515,26 +565,30 @@ struct CalcConfig{
         dup === nothing || throw(ArgumentError("Duplicate Hamiltonian term detected: $dup."))
 
         bands = hubbard.bands
-        expected_sites = bands * symmetries.cell_width
+        cw = symmetries.cell_width
+        expected_sites = bands * cw
 
         if symmetries.filling !== nothing
             n = numerator( symmetries.filling)
             d = denominator(symmetries.filling)
             (n > 0 && d > 0) || throw(ArgumentError("Filling numerator and denominator must be positive integers, got $n//$d."))
             necessary_width = d * (mod(n, 2) + 1)
-            symmetries.cell_width % necessary_width == 0 || throw(ArgumentError("cell_width ($(symmetries.cell_width)) must be a multiple of $necessary_width to accommodate the specified filling ($n / $d)."))
+            cw % necessary_width == 0 || throw(ArgumentError("cell_width ($(cw)) must be a multiple of $necessary_width to accommodate the specified filling ($n / $d)."))
         end
 
         for term in terms
+            # each dict indices are only interpretable given bands; this is cross-checked against HubbardParams.bands"
             if :bands in fieldnames(typeof(term))
                 term.bands == bands || throw(ArgumentError("Number of bands in HubbardParams ($bands) does not match number of bands in $(typeof(term)) ($(term.bands))."))
+            end
+            if :cell_width in fieldnames(typeof(term))
+                term.cell_width == cw|| throw(ArgumentError("Number of bands in HubbardParams ($bands) does not match number of bands in $(typeof(term)) ($(term.bands))."))
             end
             if term isa HolsteinTerm
                 size(term.g, 1) == bands || throw(ArgumentError("Number of bands in HubbardParams ($bands) does not match first dimension of HolsteinTerm.g ($(size(term.g,1)))."))
             elseif term isa SpinMeanField
                 size(term.J, 1) == expected_sites || throw(ArgumentError("Number of electron sites in cell ($expected_sites) does not match first dimension of SpinMeanField.J ($(size(term.J,1)))."))
             elseif term isa ChargeGapMF
-                size(term.beta_uu, 1) == expected_sites || throw(ArgumentError("Number of electron sites in cell ($expected_sites) does not match first dimension of ChargeGapMF.beta_uu ($(size(term.beta_uu,1)))."))
                 max_index = maximum(k[1] for k in keys(term.t_inter))
                 max_index <= bands || throw(ArgumentError("Index in ChargeGapMF.t_inter ($(max_index)) exceeds number of bands ($bands)."))
             end
