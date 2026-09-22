@@ -17,8 +17,11 @@ spin_symmetry = U1Irrep
 t = Dict((1,2)=>1.0, (2,1)=>1.0, (1,1)=>2.0)
 U = Dict((1,1,1,1) => 4.0)
 
-t_imp = Dict((1,2)=>0.0, (2,1)=>0.0, (1,1)=>0.0)
-U_imp = Dict((1,1,1,1) => 0.0, (1,2,2,1) => 2.0, (2,1,1,2) => 2.0)  #Notice that the impurity parameters t_imp, U_imp represent the difference between the impurity and the bulk parameters.
+# The indices below specify the site(s) where the impurity is located.
+# t_imp and U_imp represent the difference between the impurity and bulk parameters.
+# Both dictionaries must contain at least one entry.
+t_imp = Dict((1,1) => 0.0)
+U_imp = Dict((6,6,6,6) => 2.0)
 
 symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width, filling)
 model = HubbardParams(bands, t, U)

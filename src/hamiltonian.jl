@@ -429,41 +429,30 @@ function hamiltonian_term(
     Δt = term.t_imp
     ΔU = term.U_imp
 
-    imp_cell = div(cell_width, 2) - 1
+    # --- Check impurity site indices ---
+    @assert all(k -> all(i -> 1 <= i <= bands * cell_width, k), keys(Δt)) "All indices in t_imp must be between 1 and bands * cell_width."
+    @assert all(k -> all(i -> 1 <= i <= bands * cell_width, k), keys(ΔU)) "All indices in U_imp must be between 1 and bands * cell_width."
 
     h = Any[]
 
+    # Map electronic site index to physical MPS site
+    site(i) = i + div(i-1, bands) * boson_modes
+
     # --- Hopping correction ---
-    for cell in 0:(cell_width-1)
-        site(i) = i + cell*bands
-
-        for ((i, j), Δt_ij) in Δt
-            touches_imp = any(
-                x -> mod(cell + div(x-1, bands), cell_width) == imp_cell,
-                (i, j)
-            )
-            touches_imp || continue
-
-            if Δt_ij != 0
-                h = append!(h, [site.((i,j)) => -Δt_ij*ops.c⁺c])
-            end
+    for ((i, j), Δt_ij) in Δt
+        if Δt_ij != 0
+            h = append!(h, [
+                site.((i,j)) => -Δt_ij * ops.c⁺c
+            ])
         end
     end
 
     # --- 2-body interaction correction ---
-    for cell in 0:(cell_width-1)
-        site(i) = i + cell*bands
-
-        for ((i, j, k, l), ΔU_ijkl) in ΔU
-            touches_imp = any(
-                x -> mod(cell + div(x-1, bands), cell_width) == imp_cell,
-                (i, j, k, l)
-            )
-            touches_imp || continue
-
-            if ΔU_ijkl != 0
-                h = append!(h, [site.((i,j,k,l)) => 0.5 * ΔU_ijkl * ops.c⁺c⁺cc ])
-            end
+    for ((i, j, k, l), ΔU_ijkl) in ΔU
+        if ΔU_ijkl != 0
+            h = append!(h, [
+                site.((i,j,k,l)) => 0.5 * ΔU_ijkl * ops.c⁺c⁺cc
+            ])
         end
     end
 
