@@ -569,6 +569,9 @@ struct CalcConfig{
                 size(term.beta_uu, 1) == expected_sites || throw(ArgumentError("Number of electron sites in cell ($expected_sites) does not match first dimension of ChargeGapMF.beta_uu ($(size(term.beta_uu,1)))."))
                 max_index = maximum(k[1] for k in keys(term.t_inter))
                 max_index <= bands || throw(ArgumentError("Index in ChargeGapMF.t_inter ($(max_index)) exceeds number of bands ($bands)."))
+            elseif term isa ImpurityTerm
+                all(k -> all(i -> 1 <= i <= expected_sites, k), keys(term.t_imp)) || throw(ArgumentError("All indices in ImpurityTerm.t_imp must be between 1 and $expected_sites."))
+                all(k -> all(i -> 1 <= i <= expected_sites, k), keys(term.U_imp)) || throw(ArgumentError("All indices in ImpurityTerm.U_imp must be between 1 and $expected_sites."))
             end
             if symmetries.filling !== nothing && term isa HolsteinTerm
                 newf = symmetries.filling * bands // (bands + length(term.w))

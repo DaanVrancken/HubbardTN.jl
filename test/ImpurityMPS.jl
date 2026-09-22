@@ -19,9 +19,8 @@ U = Dict((1,1,1,1) => 4.0)
 
 # The indices below specify the site(s) where the impurity is located.
 # t_imp and U_imp represent the difference between the impurity and bulk parameters.
-# Both dictionaries must contain at least one entry.
-t_imp = Dict((1,1) => 0.0)
-U_imp = Dict((6,6,6,6) => 2.0)
+t_imp = Dict{NTuple{2, Int64}, Float64}()
+U_imp = Dict{NTuple{4, Int64}, Float64}((6,6,6,6) => 2.0)
 
 symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width, filling)
 model = HubbardParams(bands, t, U)

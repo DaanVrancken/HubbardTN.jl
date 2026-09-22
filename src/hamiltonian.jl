@@ -429,10 +429,6 @@ function hamiltonian_term(
     Δt = term.t_imp
     ΔU = term.U_imp
 
-    # --- Check impurity site indices ---
-    @assert all(k -> all(i -> 1 <= i <= bands * cell_width, k), keys(Δt)) "All indices in t_imp must be between 1 and bands * cell_width."
-    @assert all(k -> all(i -> 1 <= i <= bands * cell_width, k), keys(ΔU)) "All indices in U_imp must be between 1 and bands * cell_width."
-
     h = Any[]
 
     # Map electronic site index to physical MPS site
