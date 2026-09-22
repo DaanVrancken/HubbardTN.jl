@@ -192,25 +192,20 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
     @assert E != 0 "E must be nonzero"
 
     if bands == 1
-        n   = number_e(ps, ss)
-        nup = number_up(ps, ss)
-        ndn = number_down(ps, ss)
-        @assert n == nup + ndn "Number operator does not equal sum of spin-up and spin-down number operators"
-        c0  = real(expectation_value(ψ, 1 => nup))
-        c1  = real(expectation_value(ψ, 1 => ndn))
-        c   = c_plusmin(ps, ss)
-        c01 = real(expectation_value(ψ, (1,2) => c))
+        cu  = real(expectation_value(ψ, 1 => number_up(ps, ss)))
+        cd  = real(expectation_value(ψ, 1 => number_down(ps, ss)))
+        c01 = real(expectation_value(ψ, (1,2) => c_plusmin(ps, ss)))
 
-        println("c0 = ", c0)
-        println("c1 = ", c1)
+        println("cu = ", cu)
+        println("cd = ", cd)
         println("c01 = ", c01)
         
-        b0  = 2 * 4 * ty * tz * c0  / E
-        b1  = 2 * 4 * ty * tz * c1  / E
+        b0_u  = 2 * 4 * ty * tz * cu  / E
+        b0_d  = 2 * 4 * ty * tz * cd  / E
         b01 = 2 * 4 * ty * tz * c01 / E
 
         if ss == U1Irrep
-            return [b0, b1, b01]
+            return [b0_u, b0_d, b01]
         end
 
         c0_ud  = real(expectation_value(ψ, 1 => number_updown(ComplexF64, ps, ss)))
@@ -222,9 +217,17 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
         b0_ud  = 2 * 4 * ty * tz * c0_ud  / E
         b01_ud = 2 * 4 * ty * tz * c01_ud / E
 
-        return [b0, b1, b01, b0_ud, b01_ud]
+        return [b0_u, b0_d, b01, b0_ud, b01_ud]
 
     elseif bands == 2
+        c0_u  = real(expectation_value(ψ, 1 => number_up(ps, ss)))
+        c0_d  = real(expectation_value(ψ, 1 => number_down(ps, ss)))
+        println("c0_u = ", c0_u)
+        println("c0_d = ", c0_d)
+
+        b0_u = 2 * (ty^2 * c0_d + 2 * tz^2 * c0_u) / E
+        b0_d = 2 * (ty^2 * c0_u + 2 * tz^2 * c0_d) / E
+
         c00 = real(expectation_value(ψ, (1,3) => c_plusmin_up(ComplexF64, ps, ss)))
         c01 = real(expectation_value(ψ, (1,2) => c_plusmin_up(ComplexF64, ps, ss)))
         c10 = real(expectation_value(ψ, (2,1) => c_plusmin_up(ComplexF64, ps, ss)))
@@ -241,7 +244,7 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
         b11 = 2 * (ty^2 * c00 + 2 * tz^2 * c11) / E
 
         if ss == U1Irrep
-            return [b00, b01, b10, b11]
+            return [b0_u, b0_d, b00, b01, b10, b11]
         end
 
         c00_ud = real(expectation_value(ψ, (1,3) => c_plusmin_updown(ComplexF64, ps, ss)))
@@ -259,7 +262,7 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
         b10_ud = (4 * tz^2 * c01_ud) / E
         b11_ud = 2 * (ty^2 * c00_ud + 2 * tz^2 * c11_ud) / E
 
-        return [b00, b01, b10, b11, b00_ud, b01_ud, b10_ud, b11_ud]
+        return [b0_u, b0_d, b00, b01, b10, b11, b00_ud, b01_ud, b10_ud, b11_ud]
     else
         error("get_beta is only implemented for 1-band and 2-band models, got bands = $bands")
     end

@@ -91,6 +91,77 @@ function hamiltonian(calc::CalcConfig{T}) where {T<:AbstractFloat}
     return H
 end
 
+function hamiltonian_impurity(calc::CalcConfig{T}) where {T<:AbstractFloat}
+    empty!(two_body_cache)
+    empty!(three_body_cache)
+
+    bands = calc.hubbard.bands
+    t = calc.hubbard.t
+    U = calc.hubbard.U
+    t_imp = calc.hubbard.t_imp
+    U_imp = calc.hubbard.U_imp
+
+    idx = findfirst(t -> t isa HolsteinTerm, calc.terms)
+    max_b = (idx === nothing ? 0 : calc.terms[idx].max_b)
+    w = (idx === nothing ? [] : calc.terms[idx].w)
+    boson_modes = Int(max_b>0) * length(w)
+    period = bands + boson_modes
+
+    ops, spaces = build_ops(calc.symmetries, bands, max_b, boson_modes)
+    cell_width = calc.symmetries.cell_width
+    imp_cell = div(cell_width, 2)-1
+
+    h::Vector{Pair{Tuple{Vararg{Int64}}, Any}} = [(1,) => 0*ops.n]
+
+    # --- Hopping ---
+    for cell in 0:(cell_width-1)
+        site(i) = i + cell*period + div(i-1, bands)*boson_modes
+
+        for key in union(keys(t), keys(t_imp))
+            i, j = key
+
+            # Does this hopping touch the impurity cell?
+            touches_imp = any(x -> mod(cell + div(x-1, bands), cell_width) == imp_cell, (i, j))
+            t_use = touches_imp ? get(t_imp, key, get(t, key, zero(T))) : get(t, key, zero(T))
+
+            if t_use != 0
+                if i != j
+                    push!(h, site.((i,j)) => -t_use*ops.c⁺c)
+                else
+                    push!(h, (site(i),) => -t_use*ops.n)
+                end
+            end
+        end
+    end
+
+    # --- 2-body Interaction ---
+    for cell in 0:(cell_width-1)
+        site(i) = i + cell*period + div(i-1, bands)*boson_modes
+
+        for key in union(keys(U), keys(U_imp))
+            i, j, k, l = key
+
+            # Does this interaction touch the impurity cell?
+            touches_imp = any(x -> mod(cell + div(x-1, bands), cell_width) == imp_cell, (i, j, k, l))
+            U_use = touches_imp ? get(U_imp, key, get(U, key, zero(T))) : get(U, key, zero(T))
+
+            if U_use != 0
+                operator, indices = two_body_int_cached(ops, site.((i,j,k,l)))
+                push!(h, indices => 0.5 * U_use * operator)
+            end
+        end
+    end
+
+    H = InfiniteMPOHamiltonian(spaces, h...)
+
+    # --- Extra terms ---
+    for term in calc.terms
+        H += hamiltonian_term(term, ops, spaces, cell_width, bands, boson_modes)
+    end
+
+    return H
+end
+
 
 ###########################
 # Extra Hamiltonian terms #
@@ -227,16 +298,16 @@ function hamiltonian_term(
     if bands == 1
         a0, a01 = term.alpha
         if hasproperty(ops, :c⁺c_ud)
-            b0, b1, b01, b0_ud, b01_ud = term.beta
+            b0_u, b0_d, b01, b0_ud, b01_ud = term.beta
         else
-            b0, b1, b01 = term.beta
+            b0_u, b0_d, b01 = term.beta
         end
     elseif bands == 2
         a0, a1, a00, a01, a10, a11 = term.alpha
         if hasproperty(ops, :c⁺c_ud)
-            b00, b01, b10, b11, b00_ud, b01_ud, b10_ud, b11_ud = term.beta
+            b0_u, b0_d, b00, b01, b10, b11, b00_ud, b01_ud, b10_ud, b11_ud = term.beta
         else
-            b00, b01, b10, b11 = term.beta
+            b0_u, b0_d, b00, b01, b10, b11 = term.beta
         end
     else
         error("PairGapMF term: only 1-band and 2-band models are implemented, got bands = $bands.")
@@ -261,12 +332,12 @@ function hamiltonian_term(
             ])
         end
         h = append!(h, [
-                (i,) => b0*ops.nup
-                for i in electron_sites
-        ])
-        h = append!(h, [
-                (i,) => b1*ops.ndn
-                for i in electron_sites
+            (electron_sites[n],) => (
+                isodd(n) ?
+                b0_u * ops.nup + b0_d * ops.ndn :
+                b0_d * ops.nup + b0_u * ops.ndn
+            )
+            for n in 1:(length(electron_sites))
         ])
         h = append!(h, [
             (electron_sites[n+1], electron_sites[n]) => b01*ops.c⁺c
@@ -310,6 +381,16 @@ function hamiltonian_term(
             h = append!(h, [(2, 4) => -a11*hopping_pair])
             h = append!(h, [(4, 2) => -a11*hopping_pair])
         end
+
+        h = append!(h, [
+            (electron_sites[n],) => (
+                isodd(n) ?
+                b0_u * ops.nup + b0_d * ops.ndn :
+                b0_d * ops.nup + b0_u * ops.ndn
+            )
+            for n in 1:(length(electron_sites))
+        ])
+        
         @assert b01 == b10
         h = append!(h, [(1, 2) => b01*ops.c⁺c])
         h = append!(h, [(2, 1) => b01*ops.c⁺c])
