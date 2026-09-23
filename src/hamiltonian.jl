@@ -91,7 +91,6 @@ function hamiltonian(calc::CalcConfig{T}) where {T<:AbstractFloat}
     return H
 end
 
-
 ###########################
 # Extra Hamiltonian terms #
 ###########################
@@ -226,13 +225,17 @@ function hamiltonian_term(
 
     if bands == 1
         a0, a01 = term.alpha
-        b0, b01 = term.beta
+        if hasproperty(ops, :c⁺c_ud)
+            b0_u, b0_d, b01, b0_ud, b01_ud = term.beta
+        else
+            b0_u, b0_d, b01 = term.beta
+        end
     elseif bands == 2
         a0, a1, a00, a01, a10, a11 = term.alpha
         if hasproperty(ops, :c⁺c_ud)
-            b00, b01, b10, b11, b00_ud, b01_ud, b10_ud, b11_ud = term.beta
+            b0_u, b0_d, b00, b01, b10, b11, b00_ud, b01_ud, b10_ud, b11_ud = term.beta
         else
-            b00, b01, b10, b11 = term.beta
+            b0_u, b0_d, b00, b01, b10, b11 = term.beta
         end
     else
         error("PairGapMF term: only 1-band and 2-band models are implemented, got bands = $bands.")
@@ -257,6 +260,14 @@ function hamiltonian_term(
             ])
         end
         h = append!(h, [
+            (electron_sites[n], electron_sites[n]) => (
+                isodd(n) ?
+                b0_u * ops.c⁺c_uu + b0_d * ops.c⁺c_dd :
+                b0_d * ops.c⁺c_uu + b0_u * ops.c⁺c_dd
+            )
+            for n in 1:(length(electron_sites))
+        ])
+        h = append!(h, [
             (electron_sites[n+1], electron_sites[n]) => b01*ops.c⁺c
             for n in 1:(length(electron_sites)-1)
         ])
@@ -264,6 +275,22 @@ function hamiltonian_term(
             (electron_sites[n], electron_sites[n+1]) => b01*ops.c⁺c
             for n in 1:(length(electron_sites)-1)
         ])
+
+        if hasproperty(ops, :c⁺c_ud)
+            h = append!(h, [
+                (electron_sites[n], electron_sites[n]) => b0_ud*ops.c⁺c_ud + b0_ud*ops.c⁺c_du
+                for n in 1:(length(electron_sites))
+            ])
+            h = append!(h, [
+                (electron_sites[n+1], electron_sites[n]) => b01_ud*ops.c⁺c_ud + b01_ud*ops.c⁺c_du
+                for n in 1:(length(electron_sites)-1)
+            ])
+            h = append!(h, [
+                (electron_sites[n], electron_sites[n+1]) => b01_ud*ops.c⁺c_ud + b01_ud*ops.c⁺c_du
+                for n in 1:(length(electron_sites)-1)
+            ])
+        end
+
         return InfiniteMPOHamiltonian(spaces, h...)
     end
 
@@ -282,6 +309,16 @@ function hamiltonian_term(
             h = append!(h, [(2, 4) => -a11*hopping_pair])
             h = append!(h, [(4, 2) => -a11*hopping_pair])
         end
+
+        h = append!(h, [
+            (electron_sites[n], electron_sites[n]) => (
+                isodd(n) ?
+                b0_u * ops.c⁺c_uu + b0_d * ops.c⁺c_dd :
+                b0_d * ops.c⁺c_uu + b0_u * ops.c⁺c_dd
+            )
+            for n in 1:(length(electron_sites))
+        ])
+        
         @assert b01 == b10
         h = append!(h, [(1, 2) => b01*ops.c⁺c])
         h = append!(h, [(2, 1) => b01*ops.c⁺c])
@@ -378,4 +415,42 @@ function hamiltonian_term(
     end
 
     return H_ph + H_ep
+end
+# Impurity term
+function hamiltonian_term(
+                    term::ImpurityTerm,
+                    ops,
+                    spaces,
+                    cell_width::Int64,
+                    bands::Int64,
+                    boson_modes::Int64
+                )
+
+    Δt = term.t_imp
+    ΔU = term.U_imp
+
+    h = Any[]
+
+    # Map electronic site index to physical MPS site
+    site(i) = i + div(i-1, bands) * boson_modes
+
+    # --- Hopping correction ---
+    for ((i, j), Δt_ij) in Δt
+        if Δt_ij != 0
+            h = append!(h, [
+                site.((i,j)) => -Δt_ij * ops.c⁺c
+            ])
+        end
+    end
+
+    # --- 2-body interaction correction ---
+    for ((i, j, k, l), ΔU_ijkl) in ΔU
+        if ΔU_ijkl != 0
+            h = append!(h, [
+                site.((i,j,k,l)) => 0.5 * ΔU_ijkl * ops.c⁺c⁺cc
+            ])
+        end
+    end
+
+    return InfiniteMPOHamiltonian(spaces, h...)
 end

@@ -421,7 +421,7 @@ smaller than `threshold` are neglected.
     HolsteinTerm(w, g, max_b, mean_ne; xi=zero(T), threshold=zero(T))
 
 All arguments are positional except `xi` and `threshold`, which are keyword
-arguments with default `0`.  Pass `xi > 0` together with a positive
+arguments with default `0`.  Pass `xi < Inf` together with a positive
 `threshold` to enable decaying non-local coupling.
 """
 struct HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
@@ -451,6 +451,38 @@ struct HolsteinTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
     end
 end
 
+"""
+    ImpurityTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
+
+Represents a local impurity by modifying hopping and two-body interaction
+parameters at the specified impurity sites.
+
+# Fields
+- `t_imp::Dict{NTuple{2, Int64}, T}`  
+    Changes in the hopping amplitudes relative to the bare Hubbard model.
+    Entries `t_imp[(i,j)]` correspond to `Δt_ij = t'_ij - t_ij`, where the
+    indices `i` and `j` directly specify the sites associated with the impurity.
+- `U_imp::Dict{NTuple{4, Int64}, T}`  
+    Changes in the two-body interaction tensor relative to the bare Hubbard model.
+    Entries `U_imp[(i,j,k,l)]` correspond to `ΔU_ijkl = U'_ijkl - U_ijkl`, where
+    the indices `i`, `j`, `k`, and `l` directly specify the sites associated with
+    the impurity.
+
+# Constructors
+- `ImpurityTerm(t_imp, U_imp)` — creates an impurity term with specified changes
+  to the hopping and interaction parameters at the impurity sites.
+"""
+struct ImpurityTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
+    t_imp::Dict{NTuple{2, Int64}, T}
+    U_imp::Dict{NTuple{4, Int64}, T}
+
+    function ImpurityTerm(
+                t_imp::Dict{NTuple{2,Int64}, T},
+                U_imp::Dict{NTuple{4,Int},T}
+            ) where {T<:AbstractFloat}
+        return new{T}(t_imp, U_imp)
+    end
+end
 
 ######################
 # Calculation set up #
@@ -537,6 +569,9 @@ struct CalcConfig{
                 size(term.beta_uu, 1) == expected_sites || throw(ArgumentError("Number of electron sites in cell ($expected_sites) does not match first dimension of ChargeGapMF.beta_uu ($(size(term.beta_uu,1)))."))
                 max_index = maximum(k[1] for k in keys(term.t_inter))
                 max_index <= bands || throw(ArgumentError("Index in ChargeGapMF.t_inter ($(max_index)) exceeds number of bands ($bands)."))
+            elseif term isa ImpurityTerm
+                all(k -> all(i -> 1 <= i <= expected_sites, k), keys(term.t_imp)) || throw(ArgumentError("All indices in ImpurityTerm.t_imp must be between 1 and $expected_sites."))
+                all(k -> all(i -> 1 <= i <= expected_sites, k), keys(term.U_imp)) || throw(ArgumentError("All indices in ImpurityTerm.U_imp must be between 1 and $expected_sites."))
             end
             if symmetries.filling !== nothing && term isa HolsteinTerm
                 newf = symmetries.filling * bands // (bands + length(term.w))

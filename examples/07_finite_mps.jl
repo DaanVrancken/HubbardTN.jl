@@ -28,7 +28,7 @@ dim = dim_state(ψ)
 println("Max bond dimension: ", maximum(dim))
 
 Ne = density_e(ψ, calc)
-println("Number of electrons per site: ", Ne)
+println("Number of electrons per site: ", sum(Ne) / length(Ne))
 
 ent = entanglement_spectrum(ψ, Int(bands*cell_width/2))
 println("Entanglement spectrum: \n")

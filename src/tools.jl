@@ -16,12 +16,12 @@ function dim_state(ψ::Union{InfiniteMPS,FiniteMPS})
 end
 
 """
-    density_e(ψ::InfiniteMPS, calc::CalcConfig)
+    density_e(ψ::Union{InfiniteMPS,FiniteMPS}, calc::CalcConfig)
 
 Compute the electron density.
-- Returns the density per orbital and per unit-cell position.
+- Returns the density per orbital and per unit-cell position/site.
 """
-function density_e(ψ::InfiniteMPS, calc::CalcConfig)
+function density_e(ψ::Union{InfiniteMPS,FiniteMPS}, calc::CalcConfig)
     symm = calc.symmetries
     n = number_e(symm.particle_symmetry, symm.spin_symmetry; filling=symm.filling)
 
@@ -35,41 +35,18 @@ function density_e(ψ::InfiniteMPS, calc::CalcConfig)
     for i in 1:bands
         for j in 1:symm.cell_width
             site = i + (j - 1) * (bands + boson_modes)
-            Ne[i, j] = real(expectation_value(ψ, site => n))
+            Ne[i,j] = real(expectation_value(ψ, site => n))
         end
     end
     return Ne
 end
 
 """
-    density_e(ψ::FiniteMPS, calc::CalcConfig)
-
-Compute the electron density.
-- Returns the average density over the full chain.
-"""
-function density_e(ψ::FiniteMPS, calc::CalcConfig)
-    symm = calc.symmetries
-    n = number_e(symm.particle_symmetry, symm.spin_symmetry; filling=symm.filling)
-
-    idx = findfirst(t -> t isa HolsteinTerm, calc.terms)
-    w = (idx === nothing ? [] : calc.terms[idx].w)
-    boson_modes = (idx === nothing ? 0 : 1) * length(w)
-
-    chain = FiniteChain(calc.hubbard.bands*symm.cell_width)
-    Ntot = @mpoham begin
-        sum(vertices(chain)) do i
-            n{i}
-        end
-    end
-    return real(expectation_value(ψ, Ntot)) / (calc.hubbard.bands*symm.cell_width)
-end
-
-"""
-    density_b(ψ::InfiniteMPS, calc::CalcConfig)
+    density_b(ψ::Union{InfiniteMPS,FiniteMPS}, calc::CalcConfig)
 
 Compute the number of bosons per site in the unit cell.
 """
-function density_b(ψ::InfiniteMPS, calc::CalcConfig)
+function density_b(ψ::Union{InfiniteMPS,FiniteMPS}, calc::CalcConfig)
     symm = calc.symmetries
     idx = findfirst(t -> t isa HolsteinTerm, calc.terms)
     max_b = (idx === nothing ? error("No bosonic terms in model") : calc.terms[idx].max_b)
@@ -90,11 +67,11 @@ function density_b(ψ::InfiniteMPS, calc::CalcConfig)
 end
 
 """
-    density_spin(ψ::InfiniteMPS, calc::CalcConfig)
+    density_spin(ψ::Union{InfiniteMPS,FiniteMPS}, calc::CalcConfig)
 
 Compute the electron spin density per site in the unit cell.
 """
-function density_spin(ψ::InfiniteMPS, calc::CalcConfig)
+function density_spin(ψ::Union{InfiniteMPS,FiniteMPS}, calc::CalcConfig)
     symm = calc.symmetries
 
     n_up = number_up(symm.particle_symmetry, symm.spin_symmetry; filling=symm.filling)
@@ -215,16 +192,42 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
     @assert E != 0 "E must be nonzero"
 
     if bands == 1
-        n   = number_e(ps, ss)
-        c0  = real(expectation_value(ψ, 1 => n))
-        c   = c_plusmin(ps, ss)
-        c01 = real(expectation_value(ψ, (1,2) => c))
+        cu  = real(expectation_value(ψ, (1,1) => c_plusmin_up(ComplexF64, ps, ss)))
+        cd  = real(expectation_value(ψ, (1,1) => c_plusmin_down(ComplexF64, ps, ss)))
+        c01 = real(expectation_value(ψ, (1,2) => c_plusmin_up(ComplexF64, ps, ss)))
 
-        b01 = 2 * 4 * tz^2 * c01 / E
-        b0  = 2 * 4 * tz^2 * c0  / E
+        println("cu = ", cu)
+        println("cd = ", cd)
+        println("c01 = ", c01)
+        
+        b0_u  = 2 * 4 * ty * tz * cu  / E
+        b0_d  = 2 * 4 * ty * tz * cd  / E
+        b01 = 2 * 4 * ty * tz * c01 / E
 
-        return [b0, b01]
+        if ss == U1Irrep
+            return [b0_u, b0_d, b01]
+        end
+
+        c0_ud  = real(expectation_value(ψ, (1,1) => c_plusmin_updown(ComplexF64, ps, ss)))
+        c01_ud  = real(expectation_value(ψ, (1,2) => c_plusmin_updown(ComplexF64, ps, ss)))
+
+        println("c0_ud = ", c0_ud)
+        println("c01_ud = ", c01_ud)         
+
+        b0_ud  = 2 * 4 * ty * tz * c0_ud  / E
+        b01_ud = 2 * 4 * ty * tz * c01_ud / E
+
+        return [b0_u, b0_d, b01, b0_ud, b01_ud]
+
     elseif bands == 2
+        c0_u  = real(expectation_value(ψ, (1,1) => c_plusmin_up(ComplexF64, ps, ss)))
+        c0_d  = real(expectation_value(ψ, (1,1) => c_plusmin_down(ComplexF64, ps, ss)))
+        println("c0_u = ", c0_u)
+        println("c0_d = ", c0_d)
+
+        b0_u = 2 * (ty^2 * c0_d + 2 * tz^2 * c0_u) / E
+        b0_d = 2 * (ty^2 * c0_u + 2 * tz^2 * c0_d) / E
+
         c00 = real(expectation_value(ψ, (1,3) => c_plusmin_up(ComplexF64, ps, ss)))
         c01 = real(expectation_value(ψ, (1,2) => c_plusmin_up(ComplexF64, ps, ss)))
         c10 = real(expectation_value(ψ, (2,1) => c_plusmin_up(ComplexF64, ps, ss)))
@@ -241,7 +244,7 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
         b11 = 2 * (ty^2 * c00 + 2 * tz^2 * c11) / E
 
         if ss == U1Irrep
-            return [b00, b01, b10, b11]
+            return [b0_u, b0_d, b00, b01, b10, b11]
         end
 
         c00_ud = real(expectation_value(ψ, (1,3) => c_plusmin_updown(ComplexF64, ps, ss)))
@@ -259,7 +262,7 @@ function get_beta(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, E::T) where {
         b10_ud = (4 * tz^2 * c01_ud) / E
         b11_ud = 2 * (ty^2 * c00_ud + 2 * tz^2 * c11_ud) / E
 
-        return [b00, b01, b10, b11, b00_ud, b01_ud, b10_ud, b11_ud]
+        return [b0_u, b0_d, b00, b01, b10, b11, b00_ud, b01_ud, b10_ud, b11_ud]
     else
         error("get_beta is only implemented for 1-band and 2-band models, got bands = $bands")
     end
