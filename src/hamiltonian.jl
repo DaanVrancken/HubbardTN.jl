@@ -429,7 +429,6 @@ function hamiltonian_term(
 
     h = Any[]
 
-    # Map electronic site index to physical MPS site
     site(i) = i + div(i-1, bands) * boson_modes
 
     # --- Hopping correction ---

@@ -513,16 +513,13 @@ parameters at the specified impurity sites.
 - `t_imp::Dict{NTuple{2, Int64}, T}`  
     Changes in the hopping amplitudes relative to the bare Hubbard model.
     Entries `t_imp[(i,j)]` correspond to `Δt_ij = t'_ij - t_ij`, where the
-    indices `i` and `j` directly specify the sites associated with the impurity.
+    indices `i`,`j`∈[1,`bands*cell_width`] directly specify the sites associated 
+    with the impurity.
 - `U_imp::Dict{NTuple{4, Int64}, T}`  
     Changes in the two-body interaction tensor relative to the bare Hubbard model.
     Entries `U_imp[(i,j,k,l)]` correspond to `ΔU_ijkl = U'_ijkl - U_ijkl`, where
-    the indices `i`, `j`, `k`, and `l` directly specify the sites associated with
-    the impurity.
-
-# Constructors
-- `ImpurityTerm(t_imp, U_imp)` — creates an impurity term with specified changes
-  to the hopping and interaction parameters at the impurity sites.
+    the indices `i`,`j`,`k`,`l`∈[1,`bands*cell_width`] directly specify the sites 
+    associated with the impurity.
 """
 struct ImpurityTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
     t_imp::Dict{NTuple{2, Int64}, T}
@@ -532,6 +529,8 @@ struct ImpurityTerm{T<:AbstractFloat} <: AbstractHamiltonianTerm
                 t_imp::Dict{NTuple{2,Int64}, T},
                 U_imp::Dict{NTuple{4,Int},T}
             ) where {T<:AbstractFloat}
+        all(k -> all(>(0), k), keys(t_imp)) || throw(ArgumentError("t_imp has negative indices."))
+        all(k -> all(>(0), k), keys(U_imp)) || throw(ArgumentError("U_imp has negative indices."))
         return new{T}(t_imp, U_imp)
     end
 end
