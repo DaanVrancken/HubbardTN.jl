@@ -182,24 +182,22 @@ function hamiltonian_term(
     hasproperty(ops, :c⁺c_uu) || throw(ArgumentError("ChargeGapMF requires Trivial spin symmetry."))
 
     electron_site(i) = 1 + fld(i - 1, bands) * (bands + boson_modes) + mod(i - 1, bands)
-    beta_index(i)    = mod1(i, bands*cell_width)
+    beta_index(idx)  = idx .+ mod1(idx[1], bands*cell_width) .- idx[1]
 
     t_inter = term.t_inter
     range   = term.range
 
     h = Any[]
     for cell in 0:(cell_width-1), ((i, j), t_ij) in t_inter, ((k, l), t_kl) in t_inter, r in -range*bands:bands:range*bands
-
-        (abs(i - k - r) <= range && abs(j - l - r) <= range) || continue
-        
         coefficient = 2 * t_ij * t_kl
         sites   = (electron_site(i + cell*bands), electron_site(k + r + cell*bands))
-        idx = (beta_index(j + cell*bands), beta_index(l + r + cell*bands))
+        idx = beta_index((j + cell*bands, l + r + cell*bands))
+
         append!(h, [
-            sites => coefficient * term.beta_uu[idx...]  * ops.c⁺c_uu,
-            sites => coefficient * term.beta_ud[idx...]  * ops.c⁺c_ud,
-            sites => coefficient * term.beta_ud'[idx...] * ops.c⁺c_du,
-            sites => coefficient * term.beta_dd[idx...]  * ops.c⁺c_dd
+            sites => coefficient * term.beta_uu[idx]  * ops.c⁺c_uu,
+            sites => coefficient * term.beta_ud[idx]  * ops.c⁺c_ud,
+            sites => coefficient * conj(term.beta_ud[beta_index(reverse(idx))]) * ops.c⁺c_du,
+            sites => coefficient * term.beta_dd[idx]  * ops.c⁺c_dd
         ])
     end 
 
@@ -431,7 +429,6 @@ function hamiltonian_term(
 
     h = Any[]
 
-    # Map electronic site index to physical MPS site
     site(i) = i + div(i-1, bands) * boson_modes
 
     # --- Hopping correction ---

@@ -300,8 +300,6 @@ function c_minplus_downup(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, 
     return copy(adjoint(c_plusmin_downup(T, particle_symmetry, spin_symmetry; kwargs...)))
 end
 
-
-
 """
     c_plusmin(T::Type{<:Number}, particle_symmetry::Type{<:Sector}, spin_symmetry::Type{<:Sector})
 

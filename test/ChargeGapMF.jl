@@ -22,7 +22,7 @@ println("
     range   = 1
     beta    = ones(6, 6)
 
-    term = ChargeGapMF(t_inter, range, beta, beta, beta)
+    term = ChargeGapMF(t_inter, model.bands, symm.cell_width, range)
 
     # Hamiltonian
     calc = CalcConfig(symm, model, term)
@@ -35,9 +35,10 @@ end
     model = HubbardParams([0.0, 1.0], [4.0])
 
     t_inter = Dict((1, 1) => 1.0)
-    range   = 1
-    beta    = zeros(2,2)
-    term    = ChargeGapMF(t_inter, range, beta, [1.0 0.0; 0.0 1.0], beta)
+    range   = 0
+    beta_0  = Dict((1,1)=>0.0, (2,2)=>0.0)
+    beta_1  = Dict((1,1)=>1.0, (2,2)=>1.0)
+    term    = ChargeGapMF(t_inter, model.bands, symm.cell_width, range, beta_0, beta_1, beta_0)
 
     calc = CalcConfig(symm, model, term)
 

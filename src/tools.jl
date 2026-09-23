@@ -110,7 +110,6 @@ function calc_ms(ψ::InfiniteMPS, calc::CalcConfig)
     return abs(Mag[1,1])
 end
 
-
 """
     get_alpha(ψ::InfiniteMPS, calc::CalcConfig, ty::T, tz::T, Ep::T) where {T<:AbstractFloat}
 

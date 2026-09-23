@@ -47,6 +47,9 @@ ti = time()
     if GROUP == "ALL" || GROUP == "FINITEMPS"
         @time include("FiniteMPS.jl")
     end
+        if GROUP == "ALL" || GROUP == "IMPURITYMPS"
+        @time include("ImpurityMPS.jl")
+    end
 end
 
 ti = time() - ti
