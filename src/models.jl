@@ -408,6 +408,7 @@ struct ChargeGapMF{T<:Real,S<:Number} <: AbstractInterchainMF
         return new{T,S}(t_inter, bands, cell_width, range, beta_uu, beta_ud, beta_dd)
     end
 end
+# Constructor
 function ChargeGapMF(
             t_inter::Dict{NTuple{2, Int64}, T}, bands::Int64, cell_width::Int64, range::Int64
         ) where {T<:Real}
@@ -422,6 +423,7 @@ function ChargeGapMF(
 
     return ChargeGapMF(t_inter, bands, cell_width, range, beta, copy(beta), copy(beta))
 end
+
 """
     PairGapMF{T<:AbstractFloat} <: AbstractHamiltonianTerm
 
