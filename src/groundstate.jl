@@ -67,26 +67,25 @@ function initialize_mps(H::InfiniteMPOHamiltonian, calc::CalcConfig; max_dimensi
     return InfiniteMPS(Ps, V_trunc)
 end
 
-function initialize_mps(H::FiniteMPOHamiltonian, calc::CalcConfig; max_dimension::Int=50)
+function initialize_mps(H::FiniteMPOHamiltonian, calc::CalcConfig; max_dimension::Int=50, Sz_target=0)
     sym = fℤ₂ ⊠ calc.symmetries.particle_symmetry ⊠ calc.symmetries.spin_symmetry
 
     use_ps = calc.symmetries.particle_symmetry!=Trivial
     use_ss = calc.symmetries.spin_symmetry!=Trivial
-    charges_left = [0]
-    charges_right = [0]
+    charges_left = Any[0]
+    charges_right = Any[0]
 
-    if use_ps 
-        P = numerator(calc.symmetries.filling)
-        Q = denominator(calc.symmetries.filling)
+    P = use_ps ? numerator(calc.symmetries.filling) : 1
+
+    if use_ps
         Nphys = Int(calc.symmetries.filling * calc.hubbard.bands * calc.symmetries.cell_width)
-        Nshift = Q*Nphys - P * calc.hubbard.bands * calc.symmetries.cell_width
-        push!(charges_left, 0)
-        push!(charges_right, Nshift)
-    end
-    if use_ss
-        P = 0
+        charges_right[1] = mod(Nphys, 2)
         push!(charges_left, 0)
         push!(charges_right, 0)
+    end
+    if use_ss
+        push!(charges_left, 0)
+        push!(charges_right, Sz_target)
     end
 
     left  = Vect[sym](Tuple(charges_left) => 1) 
@@ -110,7 +109,8 @@ end
                         maxiter::Int=1000,
                         max_init_dim::Int=50,
                         verbosity::Int=0,
-                        finite_mps::Bool=false)
+                        finite_mps::Bool=false,
+                        Sz_target=0,)
 
 Compute the ground state of the Hamiltonian defined by the CalcConfig `calc`.
 
@@ -134,6 +134,8 @@ Compute the ground state of the Hamiltonian defined by the CalcConfig `calc`.
 - `finite_mps::Bool=false`:
     If `true`, performs a finite-size DMRG calculation with periodic boundary conditions;
     otherwise uses infinite algorithms (VUMPS/IDMRG).
+- Sz_target=0,
+    Target total spin projection for finite MPS calculations. Only relevant if `finite_mps=true`
 
 # Returns
 A `Dict` with the following entries:
@@ -150,7 +152,8 @@ function compute_groundstate(
                 maxiter::Int64=1000,
                 max_init_dim::Int=50,
                 verbosity::Int64=0,
-                finite_mps::Bool=false
+                finite_mps::Bool=false,
+                Sz_target=0,
             )
     schmidtcut = 10.0^(-svalue)
     tol = max(tol, schmidtcut/10)
@@ -159,7 +162,7 @@ function compute_groundstate(
 
     if finite_mps
         H = periodic_boundary_conditions(H, total_width)
-        ψ₀ = isnothing(init_state) ? initialize_mps(H, calc; max_dimension=max_init_dim) : init_state
+        ψ₀ = isnothing(init_state) ? initialize_mps(H, calc; max_dimension=max_init_dim, Sz_target=Sz_target) : init_state
         ψ, envs, δ = find_groundstate(ψ₀, H, DMRG2(; maxiter=maxiter, trscheme=trunctol(; atol=schmidtcut), tol=tol, verbosity=verbosity))
     else
         ψ₀ = isnothing(init_state) ? initialize_mps(H, calc; max_dimension=max_init_dim) : init_state
