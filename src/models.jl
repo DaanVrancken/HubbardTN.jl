@@ -102,7 +102,7 @@ function check_hermitian_dict(d::Dict{NTuple{X, Int}, T}; atol::Real=1e-8, rtol:
         
         # Check if values match within tolerance
         val_rev = d[k_rev]
-        if !isapprox(val, val_rev; atol=atol, rtol=rtol)
+        if !isapprox(val, conj(val_rev); atol=atol, rtol=rtol)
             return false, k_rev
         end
     end
@@ -404,6 +404,11 @@ struct ChargeGapMF{T<:Real,S<:Number} <: AbstractInterchainMF
             extra_keys = setdiff(dict_keys, expected_keys)
             isempty(extra_keys) || throw(ArgumentError("$name contains extra elements: $(join(extra_keys, ", "))"))
         end
+
+        uu_hermitian, key_uu = check_hermitian_dict(beta_uu)
+        uu_hermitian || throw(ArgumentError("beta_uu is not Hermitian. Missing or inconsistent conjugate for key $(key_uu)."))
+        dd_hermitian, key_dd = check_hermitian_dict(beta_dd)
+        dd_hermitian || throw(ArgumentError("beta_dd is not Hermitian. Missing or inconsistent conjugate for key $(key_dd)."))
 
         return new{T,S}(t_inter, bands, cell_width, range, beta_uu, beta_ud, beta_dd)
     end
