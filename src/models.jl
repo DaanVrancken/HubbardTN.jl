@@ -325,6 +325,36 @@ end
 
 abstract type AbstractInterchainMF <: AbstractHamiltonianTerm end
 
+# Translate (row, col) by a multiple of N so that row lies in 1:N
+function fold_index(idx::NTuple{2, Int64}, N::Int64)
+    shift = mod1(idx[1], N) - idx[1]
+    return (idx[1] + shift, idx[2] + shift)
+end
+
+# Keys that every beta dictionary of a ChargeGapMF must contain
+function beta_keys(t_inter::Dict{NTuple{2, Int64}, T}, bands::Int64,
+                   cell_width::Int64, range::Int64) where {T<:Real}
+    N = bands * cell_width
+    orbitals = unique(last.(keys(t_inter)))
+    keyset = Set{NTuple{2, Int64}}()
+    for i in orbitals, j in orbitals, r in -range*bands:bands:range*bands, cell in 0:cell_width-1
+        push!(keyset, fold_index((i + cell*bands, j + r + cell*bands), N))
+    end
+    return keyset
+end
+
+# Hermiticity check for dicts whose keys are folded into the unit cell:
+# d[(k,l)] == conj(d[fold((l,k))]). Diagonal entries must therefore be real.
+function check_hermitian_folded_dict(d::Dict{NTuple{2, Int64}, S}, N::Int64;
+                                     atol::Real=1e-8, rtol::Real=1e-5) where {S}
+    for (k, val) in d
+        partner = fold_index((k[2], k[1]), N)
+        haskey(d, partner) || return false, partner
+        isapprox(val, conj(d[partner]); atol=atol, rtol=rtol) || return false, partner
+    end
+    return true, nothing
+end
+
 """
     ChargeGapMF{T<:Real,S<:Number} <: AbstractInterchainMF
 
@@ -380,22 +410,14 @@ struct ChargeGapMF{T<:Real,S<:Number} <: AbstractInterchainMF
     beta_ud::Dict{NTuple{2, Int64}, S}
     beta_dd::Dict{NTuple{2, Int64}, S}
     function ChargeGapMF(t_inter::Dict{NTuple{2, Int64}, T}, bands::Int64, cell_width::Int64, range::Int64,
-                beta_uu::Dict{NTuple{2, Int64}, S}, beta_ud::Dict{NTuple{2, Int64}, S}, beta_dd::Dict{NTuple{2, Int64}, S}
-            ) where {T<:Real,S<:Number}
+            beta_uu::Dict{NTuple{2, Int64}, S}, beta_ud::Dict{NTuple{2, Int64}, S}, beta_dd::Dict{NTuple{2, Int64}, S}
+        ) where {T<:Real,S<:Number}
         bands > 0 || throw(ArgumentError("bands must be a positive integer, got $bands."))
         cell_width > 0 || throw(ArgumentError("cell_width must be a positive integer, got $cell_width."))
-        range >= 0 || throw(ArgumentError("range must be a positive integer, got $range."))
-        all(k -> all(>(0), k[1]), keys(t_inter)) || throw(ArgumentError("t_inter has negative first index."))
-        
-        expected_keys = Set{NTuple{2, Int64}}()
-        period = cell_width * bands
-        for (_, i) in keys(t_inter), (_, j) in keys(t_inter), r in -range*bands:bands:range*bands, cell in 0:cell_width-1
-            idx = (i + cell*bands, j + r + cell*bands)
-            # Shift to have first index in central unit cell
-            shift = mod1(idx[1], period) - idx[1]
-            idx = (idx[1] + shift, idx[2] + shift)
-            push!(expected_keys, idx)
-        end
+        range >= 0 || throw(ArgumentError("range must be a non-negative integer, got $range."))
+        all(k -> k[1] > 0, keys(t_inter)) || throw(ArgumentError("t_inter has non-positive first index."))
+
+        expected_keys = beta_keys(t_inter, bands, cell_width, range)
 
         for (dict, name) in ((beta_uu, "beta_uu"), (beta_ud, "beta_ud"), (beta_dd, "beta_dd"))
             dict_keys = keys(dict)
@@ -405,27 +427,19 @@ struct ChargeGapMF{T<:Real,S<:Number} <: AbstractInterchainMF
             isempty(extra_keys) || throw(ArgumentError("$name contains extra elements: $(join(extra_keys, ", "))"))
         end
 
-        uu_hermitian, key_uu = check_hermitian_dict(beta_uu)
-        uu_hermitian || throw(ArgumentError("beta_uu is not Hermitian. Missing or inconsistent conjugate for key $(key_uu)."))
-        dd_hermitian, key_dd = check_hermitian_dict(beta_dd)
-        dd_hermitian || throw(ArgumentError("beta_dd is not Hermitian. Missing or inconsistent conjugate for key $(key_dd)."))
+        N = bands * cell_width
+        for (dict, name) in ((beta_uu, "beta_uu"), (beta_dd, "beta_dd"))
+            ok, bad = check_hermitian_folded_dict(dict, N)
+            ok || throw(ArgumentError("$name is not Hermitian. Missing or inconsistent partner $bad."))
+        end
 
         return new{T,S}(t_inter, bands, cell_width, range, beta_uu, beta_ud, beta_dd)
     end
 end
 # Constructor
-function ChargeGapMF(
-            t_inter::Dict{NTuple{2, Int64}, T}, bands::Int64, cell_width::Int64, range::Int64
-        ) where {T<:Real}
-    beta = Dict{NTuple{2, Int64}, ComplexF64}()
-    period = cell_width * bands
-    for (_, i) in keys(t_inter), (_, j) in keys(t_inter), r in -range*bands:bands:range*bands, cell in 0:cell_width-1
-        idx = (i + cell*bands, j + r + cell*bands)
-        shift = mod1(idx[1], period) - idx[1]
-        idx = (idx[1] + shift, idx[2] + shift)
-        beta[idx] = 0.0 + 0.0im
-    end
-
+function ChargeGapMF(t_inter::Dict{NTuple{2, Int64}, T}, bands::Int64,
+                     cell_width::Int64, range::Int64) where {T<:Real}
+    beta = Dict(k => 0.0 + 0.0im for k in beta_keys(t_inter, bands, cell_width, range))
     return ChargeGapMF(t_inter, bands, cell_width, range, beta, copy(beta), copy(beta))
 end
 
