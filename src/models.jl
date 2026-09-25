@@ -335,11 +335,18 @@ end
 function beta_keys(t_inter::Dict{NTuple{2, Int64}, T}, bands::Int64,
                    cell_width::Int64, range::Int64) where {T<:Real}
     N = bands * cell_width
-    orbitals = unique(last.(keys(t_inter)))
     keyset = Set{NTuple{2, Int64}}()
-    for i in orbitals, j in orbitals, r in -range*bands:bands:range*bands, cell in 0:cell_width-1
-        push!(keyset, fold_index((i + cell*bands, j + r + cell*bands), N))
+
+    firsts = unique(first.(keys(t_inter)))
+    for i in firsts, k in firsts, r in -range*bands:bands:range*bands, cell in 0:cell_width-1
+        push!(keyset, fold_index((i + cell*bands, k + r + cell*bands), N))
     end
+
+    seconds = unique(last.(keys(t_inter)))
+    for j in seconds, l in seconds, r in -range*bands:bands:range*bands, cell in 0:cell_width-1
+        push!(keyset, fold_index((j + cell*bands, l + r + cell*bands), N))
+    end
+
     return keyset
 end
 
@@ -384,10 +391,10 @@ effective interchain/interladder processes.
     Each beta dictionary must contain exactly the keys generated from pairs of
     keys in `t_inter`. For every `(a, i)` and `(b, j)` in `keys(t_inter)`, and
     for every cell offset `cw = 0:cell_width-1` and relative displacement
-    `r = -range*bands:bands:range*bands`, the required key is
-    `(i + cw*bands, j + r + cw*bands)` shifted so that the first index is in
-    the range `[1,bands*cell_width]`. Thus, all required combinations must be
-    present and no other keys are allowed.
+    `r = -range*bands:bands:range*bands`, the required keys are 
+    `(a + cw*bands, b + r + cw*bands)` and `(i + cw*bands, j + r + cw*bands)` 
+    shifted so that the first index is in the range `[1,bands*cell_width]`. 
+    Thus, all required combinations must be present and no other keys are allowed.
 
 # Constructors
 - `ChargeGapMF(t_inter, bands, cell_width, range, beta_uu, beta_ud, beta_dd)`
