@@ -20,7 +20,6 @@ println("
     # Mean field term
     t_inter = Dict((1, 1) => 0.5, (3, 4) => 0.5, (1, 3) => 0.5)
     range   = 1
-    beta    = ones(6, 6)
 
     term = ChargeGapMF(t_inter, model.bands, symm.cell_width, range)
 
