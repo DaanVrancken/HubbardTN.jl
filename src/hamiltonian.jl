@@ -187,19 +187,28 @@ function hamiltonian_term(
     t_inter = term.t_inter
     range   = term.range
 
-    h = Any[]
+    acc = Dict{NTuple{2, Int}, Vector{ComplexF64}}()
     for cell in 0:(cell_width-1), ((i, j), t_ij) in t_inter, ((k, l), t_kl) in t_inter, r in -range*bands:bands:range*bands
-        coefficient = 2 * t_ij * t_kl
-        sites   = (electron_site(i + cell*bands), electron_site(k + r + cell*bands))
-        idx = beta_index((j + cell*bands, l + r + cell*bands))
+        c     = 2 * t_ij * t_kl
+        sites = (electron_site(i + cell*bands), electron_site(k + r + cell*bands))
+        idx   = beta_index((j + cell*bands, l + r + cell*bands))
 
-        append!(h, [
-            sites => coefficient * term.beta_uu[idx]  * ops.c⁺c_uu,
-            sites => coefficient * term.beta_ud[idx]  * ops.c⁺c_ud,
-            sites => coefficient * conj(term.beta_ud[beta_index(reverse(idx))]) * ops.c⁺c_du,
-            sites => coefficient * term.beta_dd[idx]  * ops.c⁺c_dd
-        ])
-    end 
+        v = get!(() -> zeros(ComplexF64, 4), acc, sites)
+        v[1] += c * term.beta_uu[idx]
+        v[2] += c * term.beta_ud[idx]
+        v[3] += c * conj(term.beta_ud[beta_index(reverse(idx))])
+        v[4] += c * term.beta_dd[idx]
+    end
+
+    # Remove negligible terms
+    channel_ops = (ops.c⁺c_uu, ops.c⁺c_ud, ops.c⁺c_du, ops.c⁺c_dd)
+    h = Any[]
+    for sites in sort!(collect(keys(acc)))
+        for (c, op) in zip(acc[sites], channel_ops)
+            abs(c) > 1e-10 && push!(h, sites => c * op)
+        end
+    end
+    isempty(h) && push!(h, (1,) => 0 * ops.n)
 
     return InfiniteMPOHamiltonian(spaces, h...)
 end
