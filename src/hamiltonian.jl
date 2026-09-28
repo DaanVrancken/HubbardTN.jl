@@ -158,16 +158,19 @@ function hamiltonian_term(
                     bands::Int64,
                     boson_modes::Int64
                 )
-    J = term.J
-    s = term.spins
+    period = cell_width * bands
 
-    electron_sites = [i + div(i-1, bands)*boson_modes for i in 1:(cell_width*bands)]
+    electron_site(i) = 1 + fld(i - 1, bands) * (bands + boson_modes) + mod(i - 1, bands)
 
-    if length(size(s)) == 1
-        h = [(i,) => J[i,j]*s[j]*ops.Sz for i in electron_sites, j in electron_sites]
+    # effective on-site field on every electron site: Σ_j J[a,j] s[j,:]
+    fields = term.J * term.spins          # N-vector (collinear) or N×3 matrix (noncollinear)
+
+    if fields isa AbstractVector
+        h = [(electron_site(a),) => fields[a] * ops.Sz for a in 1:period]
     else
-        h = [(i,) => J[i,j]*(s[j,1]*ops.Sx + s[j,2]*ops.Sy + s[j,3]*ops.Sz) for i in electron_sites, j in electron_sites]
+        h = [(electron_site(a),) => fields[a, 1] * ops.Sx + fields[a, 2] * ops.Sy + fields[a, 3] * ops.Sz for a in 1:period]
     end
+
     return InfiniteMPOHamiltonian(spaces, h...)
 end
 # Charge gap mean field term
