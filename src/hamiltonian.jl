@@ -158,16 +158,19 @@ function hamiltonian_term(
                     bands::Int64,
                     boson_modes::Int64
                 )
-    J = term.J
-    s = term.spins
+    period = cell_width * bands
 
-    electron_sites = [i + div(i-1, bands)*boson_modes for i in 1:(cell_width*bands)]
+    electron_site(i) = 1 + fld(i - 1, bands) * (bands + boson_modes) + mod(i - 1, bands)
 
-    if length(size(s)) == 1
-        h = [(i,) => J[i,j]*s[j]*ops.Sz for i in electron_sites, j in electron_sites]
+    # effective on-site field on every electron site: Σ_j J[a,j] s[j,:]
+    fields = term.J * term.spins          # N-vector (collinear) or N×3 matrix (noncollinear)
+
+    if fields isa AbstractVector
+        h = [(electron_site(a),) => fields[a] * ops.Sz for a in 1:period]
     else
-        h = [(i,) => J[i,j]*(s[j,1]*ops.Sx + s[j,2]*ops.Sy + s[j,3]*ops.Sz) for i in electron_sites, j in electron_sites]
+        h = [(electron_site(a),) => fields[a, 1] * ops.Sx + fields[a, 2] * ops.Sy + fields[a, 3] * ops.Sz for a in 1:period]
     end
+
     return InfiniteMPOHamiltonian(spaces, h...)
 end
 # Charge gap mean field term
@@ -187,19 +190,28 @@ function hamiltonian_term(
     t_inter = term.t_inter
     range   = term.range
 
-    h = Any[]
+    acc = Dict{NTuple{2, Int}, Vector{ComplexF64}}()
     for cell in 0:(cell_width-1), ((i, j), t_ij) in t_inter, ((k, l), t_kl) in t_inter, r in -range*bands:bands:range*bands
-        coefficient = 2 * t_ij * t_kl
-        sites   = (electron_site(i + cell*bands), electron_site(k + r + cell*bands))
-        idx = beta_index((j + cell*bands, l + r + cell*bands))
+        c     = 2 * t_ij * t_kl
+        sites = (electron_site(i + cell*bands), electron_site(k + r + cell*bands))
+        idx   = beta_index((j + cell*bands, l + r + cell*bands))
 
-        append!(h, [
-            sites => coefficient * term.beta_uu[idx]  * ops.c⁺c_uu,
-            sites => coefficient * term.beta_ud[idx]  * ops.c⁺c_ud,
-            sites => coefficient * conj(term.beta_ud[beta_index(reverse(idx))]) * ops.c⁺c_du,
-            sites => coefficient * term.beta_dd[idx]  * ops.c⁺c_dd
-        ])
-    end 
+        v = get!(() -> zeros(ComplexF64, 4), acc, sites)
+        v[1] += c * term.beta_uu[idx]
+        v[2] += c * term.beta_ud[idx]
+        v[3] += c * conj(term.beta_ud[beta_index(reverse(idx))])
+        v[4] += c * term.beta_dd[idx]
+    end
+
+    # Remove negligible terms
+    channel_ops = (ops.c⁺c_uu, ops.c⁺c_ud, ops.c⁺c_du, ops.c⁺c_dd)
+    h = Any[]
+    for sites in sort!(collect(keys(acc)))
+        for (c, op) in zip(acc[sites], channel_ops)
+            abs(c) > 1e-10 && push!(h, sites => c * op)
+        end
+    end
+    isempty(h) && push!(h, (1,) => 0 * ops.n)
 
     return InfiniteMPOHamiltonian(spaces, h...)
 end
