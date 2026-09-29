@@ -43,8 +43,6 @@ bands = 1
     @test sum(Ne) / length(Ne) ≈ 1.0 atol=tol
 
     ent = entanglement_spectrum(ψ, Int(bands*cell_width/2))
-    println("Entanglement spectrum: \n")
-    display(ent)
 end
 
 f = [1//2, 3//2];

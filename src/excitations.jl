@@ -8,8 +8,10 @@
 Compute the low-lying quasiparticle excitations above a given ground state.
 
 # Arguments
-- `groundstate_dict::Dict{String,Any}`: A dictionary produced by `compute_groundstate`, containing the keys `"groundstate"`, `"ham"`, and `"environments"`.
-- `momenta::Union{Float64,Vector{Float64}}`: A collection of momentum values (in units of lattice sites) at which excitations are evaluated.
+- `groundstate_dict::Dict{String,Any}`: A dictionary produced by `compute_groundstate`, 
+   containing the keys `"groundstate"`, `"ham"`, and `"environments"`.
+- `momenta::Union{Float64,Vector{Float64}}`: A collection of momentum values (in units of lattice sites) 
+   at which excitations are evaluated. This argument is irrelevant for FiniteMPS.
 - `charges::Vector{Float64}`: Target quantum numbers defining the excitation sector (one value per symmetry).
 - `nums::Int64=1`: Number of excitations to compute per momentum.
 - `solver`: The eigensolver used for diagonalization (default is `Arnoldi(; krylovdim=30, tol=1e-6, eager=true)`).
@@ -35,8 +37,13 @@ function compute_excitations(
     @assert length(charges) == length(trivial_sector) "Number of charges must match number of symmetries ($(length(trivial_sector)))."
     sector = foldl(⊠, [typeof(f)(charges[i]) for (i, f) in enumerate((trivial_sector))])
 
-    Es, qps = excitations(H, QuasiparticleAnsatz(solver, MPSKit.Defaults.alg_environments(;dynamic_tols=false)), 
+    if typeof(ψ) <: FiniteMPS
+        Es, qps = excitations(H, QuasiparticleAnsatz(solver, MPSKit.Defaults.alg_environments(;dynamic_tols=false)), 
+                            ψ, envs; num=nums, sector=sector)
+    else
+        Es, qps = excitations(H, QuasiparticleAnsatz(solver, MPSKit.Defaults.alg_environments(;dynamic_tols=false)), 
                             momenta./length(H), ψ, envs; num=nums, sector=sector)
+    end
 
     return Dict("Es" => Es, "qps" => qps, "momenta" => momenta)
 end
@@ -47,8 +54,10 @@ end
 Compute domain-wall excitations between a ground state and a spatially shifted version of itself.
 
 # Arguments
-- `groundstate_dict::Dict{String,Any}`: A dictionary produced by `compute_groundstate`, containing `"groundstate"`, `"ham"`, and `"environments"`.
-- `momenta::Union{Float64,Vector{Float64}}`: A collection of momentum values (in units of lattice sites) at which domain-wall excitations are evaluated.
+- `groundstate_dict::Dict{String,Any}`: A dictionary produced by `compute_groundstate`,
+   containing `"groundstate"`, `"ham"`, and `"environments"`.
+- `momenta::Union{Float64,Vector{Float64}}`: A collection of momentum values (in units of lattice sites)
+   at which domain-wall excitations are evaluated.
 - `charges::Vector{Float64}`: Target quantum numbers defining the excitation sector (one value per symmetry).
 - `nums::Int64=1`: Number of excitations to compute per momentum.
 - `shift::Int64=1`: The number of lattice sites by which to shift the reference ground state to form the domain wall.

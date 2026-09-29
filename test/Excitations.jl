@@ -72,3 +72,19 @@ t = [first(u)/2, 1.0];
     @test gap >= 0.0
     @test 0.0 <= kmin <= π
 end
+
+#############
+# FiniteMPS #
+#############
+
+# @testset "FiniteMPS" begin
+#     cw = 6
+#     symm = SymmetryConfig(U1Irrep, U1Irrep, cw, 1//1)
+#     model = HubbardParams(t, u)
+#     calc = CalcConfig(symm, model)
+#     gs = compute_groundstate(calc; tol=tol/10, finite_mps=true)
+
+#     gap, kmin = compute_spingap(gs, calc; resolution=5)
+#     @test gap >= 0.0
+#     @test 0.0 <= kmin <= π
+# end
