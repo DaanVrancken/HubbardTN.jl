@@ -163,19 +163,19 @@ function compute_groundstate(
     if finite_mps
         H = periodic_boundary_conditions(H, total_width)
         ψ₀ = isnothing(init_state) ? initialize_mps(H, calc; max_dimension=max_init_dim, Sz_target=Sz_target) : init_state
-        ψ, envs, δ = find_groundstate(ψ₀, H, DMRG2(; maxiter=maxiter, trscheme=trunctol(; atol=schmidtcut), tol=tol, verbosity=verbosity))
+        ψ, envs, δ = find_groundstate(ψ₀, H, DMRG2(; maxiter=maxiter, trunc=trunctol(; atol=schmidtcut), tol=tol, verbosity=verbosity))
     else
         ψ₀ = isnothing(init_state) ? initialize_mps(H, calc; max_dimension=max_init_dim) : init_state
         if total_width > 1
-            ψ₀, envs, = find_groundstate(ψ₀, H, IDMRG2(; maxiter=maxiter, trscheme=trunctol(; atol=schmidtcut), tol=tol, verbosity=verbosity))
+            ψ₀, envs, = find_groundstate(ψ₀, H, IDMRG2(; maxiter=maxiter, trunc=trunctol(; atol=schmidtcut), tol=tol, verbosity=verbosity))
         else
             ψ₀, envs, = find_groundstate(ψ₀, H, VUMPS(; maxiter=maxiter, tol=tol, verbosity=verbosity))
-            ψ₀ = changebonds(ψ₀, SvdCut(; trscheme=trunctol(; atol=schmidtcut)))
+            ψ₀ = changebonds(ψ₀, SvdCut(; trunc=trunctol(; atol=schmidtcut)))
             χ = sum(i -> dim(left_virtualspace(ψ₀, i)), 1:total_width)
             for i in 1:maxiter
-                ψ₀, envs = changebonds(ψ₀, H, VUMPSSvdCut(; trscheme=trunctol(; atol=schmidtcut)))
+                ψ₀, envs = changebonds(ψ₀, H, VUMPSSvdCut(; trunc=trunctol(; atol=schmidtcut)))
                 ψ₀, = find_groundstate(ψ₀, H, VUMPS(; tol=max(tol, schmidtcut / 10), verbosity=verbosity), envs)
-                ψ₀ = changebonds(ψ₀, SvdCut(; trscheme=trunctol(; atol=schmidtcut)))
+                ψ₀ = changebonds(ψ₀, SvdCut(; trunc=trunctol(; atol=schmidtcut)))
                 χ′ = sum(i -> dim(left_virtualspace(ψ₀, i)), 1:total_width)
                 isapprox(χ, χ′; rtol=0.05) && break
                 χ = χ′

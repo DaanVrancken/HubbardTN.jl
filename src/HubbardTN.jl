@@ -12,8 +12,8 @@ export dim_state, density_e, density_b, density_spin, calc_ms, density_correlati
 export save_computation, load_computation, save_state, load_state, dict_tag
 export inv_power_expsum
 
-using MPSKit, MPSKitModels, TensorKit
-using KrylovKit, TensorKitTensors, BlockTensorKit, MatrixAlgebraKit
+using MPSKit, TensorKit, TensorKitTensors
+using KrylovKit, BlockTensorKit, MatrixAlgebraKit
 using JLD2, Printf
 
 include("models.jl")
