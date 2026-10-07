@@ -9,9 +9,7 @@ cell_width = 8
 
 t = Dict((1,2)=>1.0, (2,1)=>1.0, (1,1)=>2.0)
 
-U = Dict(
-    (1,1,1,1) => 4.0)
-
+U = Dict((1,1,1,1) => 4.0)
 
 model = HubbardParams(bands, t, U)
 symm = SymmetryConfig(particle_symmetry, spin_symmetry, cell_width) #Length will be bands * cell_width
