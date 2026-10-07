@@ -1,6 +1,6 @@
 name = "HubbardTN"
 uuid = "31f8dd75-9f76-4da8-9aed-ce20a80dcd69"
-version = "0.5.3"
+version = "0.6.0"
 authors = ["Daan Vrancken", "Quentin Staelens"]
 
 [deps]

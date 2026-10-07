@@ -8,7 +8,7 @@ makedocs(
         "Library" => "Functions.md",
         "Examples" => "Examples.md",
     ],
-    format = Documenter.HTML(inventory_version = "0.5.3"),
+    format = Documenter.HTML(inventory_version = "0.6.0"),
 )
 
 deploydocs(
